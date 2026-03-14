@@ -3,7 +3,8 @@ import { Template, Section, SectionType, SectionOption } from '@/types';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { X, Plus, Trash2, Image, GripVertical } from 'lucide-react';
+import { ImageUploader } from '@/components/ui/ImageUploader';
+import { X, Plus, Trash2, GripVertical } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const SECTION_TYPES: { value: SectionType; label: string }[] = [
@@ -99,17 +100,12 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
           <Input label="Nom du template" value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Sprint Review" />
 
           {/* Cover image */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-              <Image size={14} />Image de couverture (URL)
-            </label>
-            <Input value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="https://..." />
-            {coverImage && (
-              <img src={coverImage} alt="Couverture"
-                className="mt-2 h-32 w-full object-cover rounded-xl border border-gray-200"
-                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            )}
-          </div>
+          <ImageUploader
+            label="Image de couverture"
+            value={coverImage}
+            onChange={setCoverImage}
+            onClear={() => setCoverImage('')}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Votes initiaux par participant</label>
@@ -141,18 +137,13 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                   </select>
 
                   {/* Section header image */}
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Image d'en-tête de section (URL)</label>
-                    <input type="text" value={s.imageUrl ?? ''}
-                      onChange={e => updateSection(idx, 'imageUrl', e.target.value || null)}
-                      placeholder="https://..."
-                      className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm" />
-                    {s.imageUrl && (
-                      <img src={s.imageUrl} alt=""
-                        className="mt-1.5 h-16 w-full object-cover rounded-lg"
-                        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    )}
-                  </div>
+                  <ImageUploader
+                    label="Image d'en-tête de section"
+                    value={s.imageUrl ?? ''}
+                    onChange={v => updateSection(idx, 'imageUrl', v)}
+                    onClear={() => updateSection(idx, 'imageUrl', null)}
+                    maxWidthPx={900}
+                  />
 
                   {/* Mood image options */}
                   {isMood(s.type as SectionType) && (
@@ -165,24 +156,22 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {(s.options ?? []).map((opt, oIdx) => (
-                          <div key={oIdx} className="bg-gray-50 rounded-lg p-2 space-y-1 relative">
+                          <div key={oIdx} className="bg-gray-50 rounded-lg p-2 space-y-1.5 relative">
                             <button onClick={() => removeOption(idx, oIdx)}
-                              className="absolute top-1 right-1 text-red-400 hover:text-red-600">
+                              className="absolute top-1 right-1 text-red-400 hover:text-red-600 z-10">
                               <X size={12} />
                             </button>
                             <input type="text" value={opt.title}
                               onChange={e => updateOption(idx, oIdx, 'title', e.target.value)}
                               placeholder="Titre (ex: Très bien 😊)"
-                              className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
-                            <input type="text" value={opt.imageUrl}
-                              onChange={e => updateOption(idx, oIdx, 'imageUrl', e.target.value)}
-                              placeholder="URL image"
-                              className="w-full border border-gray-200 rounded px-2 py-1 text-xs" />
-                            {opt.imageUrl && (
-                              <img src={opt.imageUrl} alt={opt.title}
-                                className="h-14 w-full object-cover rounded"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                            )}
+                              className="w-full border border-gray-200 rounded px-2 py-1 text-xs pr-6" />
+                            <ImageUploader
+                              value={opt.imageUrl}
+                              onChange={v => updateOption(idx, oIdx, 'imageUrl', v)}
+                              onClear={() => updateOption(idx, oIdx, 'imageUrl', '')}
+                              maxWidthPx={600}
+                              quality={0.78}
+                            />
                           </div>
                         ))}
                       </div>
