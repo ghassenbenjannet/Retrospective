@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { Types } from 'mongoose';
 import { User } from '../models/User';
 import { Workspace } from '../models/Workspace';
 import { signToken, authenticate, AuthRequest } from '../middleware/auth';
@@ -19,7 +20,7 @@ router.post('/register-admin', async (req: Request, res: Response) => {
       return;
     }
     // create workspace first with a temp ObjectId, then update
-    const workspace = await Workspace.create({ name: workspaceName, createdBy: new (require('mongoose').Types.ObjectId)() });
+    const workspace = await Workspace.create({ name: workspaceName, createdBy: new Types.ObjectId() });
     const user = await User.create({ email, password, name, role: 'admin', workspaceId: workspace._id });
     workspace.createdBy = user._id;
     await workspace.save();
