@@ -14,6 +14,10 @@ export function useSession(sessionId: string) {
 
     socket.emit('session:join', { sessionId });
 
+    // Re-join on reconnect (network blip, server restart, etc.)
+    const rejoin = () => socket.emit('session:join', { sessionId });
+    socket.on('connect', rejoin);
+
     socket.on('session:state', (session: Session) => store.setSession(session));
     socket.on('session:participants', (participants: Participant[]) => store.setParticipants(participants));
     socket.on('session:step_changed', store.setStepChanged);
@@ -68,6 +72,7 @@ export function useSession(sessionId: string) {
       socket.off('cardgame:state');
       socket.off('user:typing');
       socket.off('user:stopped_typing');
+      socket.off('connect', rejoin);
     };
   }, [sessionId]);
 }
