@@ -1,0 +1,45 @@
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import { createServer } from 'http';
+import { Server as SocketServer } from 'socket.io';
+import { connectDB } from './config/db';
+import authRoutes from './routes/auth';
+import userRoutes from './routes/users';
+import templateRoutes from './routes/templates';
+import sessionRoutes from './routes/sessions';
+import actionRoutes from './routes/actions';
+import { registerSocketHandlers } from './socket/sessionSocket';
+
+const app = express();
+const httpServer = createServer(app);
+
+const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
+
+const io = new SocketServer(httpServer, {
+  cors: { origin: clientUrl, credentials: true },
+});
+
+app.use(cors({ origin: clientUrl, credentials: true }));
+app.use(express.json());
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api/sessions', sessionRoutes);
+app.use('/api/actions', actionRoutes);
+
+app.get('/health', (_req, res) => res.json({ ok: true }));
+
+registerSocketHandlers(io);
+
+const PORT = Number(process.env.PORT ?? 3001);
+
+connectDB()
+  .then(() => {
+    httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch(err => {
+    console.error('DB connection failed:', err);
+    process.exit(1);
+  });

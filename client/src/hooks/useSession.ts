@@ -1,0 +1,46 @@
+import { useEffect } from 'react';
+import { getSocket } from '@/lib/socket';
+import { useSessionStore } from '@/store/sessionStore';
+import { Card, MiniGame, Participant, Session } from '@/types';
+
+export function useSession(sessionId: string) {
+  const store = useSessionStore();
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket.connected) socket.connect();
+
+    socket.emit('session:join', { sessionId });
+
+    socket.on('session:state', (session: Session) => store.setSession(session));
+    socket.on('session:participants', (participants: Participant[]) => store.setParticipants(participants));
+    socket.on('session:step_changed', store.setStepChanged);
+    socket.on('session:voting_changed', ({ votingOpen }: { votingOpen: boolean }) => store.setVotingOpen(votingOpen));
+    socket.on('session:votes_updated', ({ remainingVotes }: { remainingVotes: number }) => store.setRemainingVotes(remainingVotes));
+    socket.on('session:timer_started', ({ timerEndsAt }: { timerEndsAt: string }) => store.setTimerEndsAt(timerEndsAt));
+
+    socket.on('card:created', (card: Card) => store.addCard(card));
+    socket.on('card:updated', (card: Card) => store.updateCard(card));
+    socket.on('card:deleted', ({ cardId }: { cardId: string }) => store.removeCard(cardId));
+    socket.on('card:voted', ({ cardId, voteCount }: { cardId: string; voteCount: number }) =>
+      store.updateCardVotes(cardId, voteCount));
+
+    socket.on('minigame:started', (game: MiniGame) => store.setActiveGame(game));
+    socket.on('minigame:revealed', (game: MiniGame) => store.setActiveGame(game));
+
+    return () => {
+      socket.off('session:state');
+      socket.off('session:participants');
+      socket.off('session:step_changed');
+      socket.off('session:voting_changed');
+      socket.off('session:votes_updated');
+      socket.off('session:timer_started');
+      socket.off('card:created');
+      socket.off('card:updated');
+      socket.off('card:deleted');
+      socket.off('card:voted');
+      socket.off('minigame:started');
+      socket.off('minigame:revealed');
+    };
+  }, [sessionId]);
+}

@@ -1,89 +1,54 @@
 # Retrospective Live
 
-A polished, real-time sprint retrospective web app built with **React + Vite + TypeScript + Tailwind + Supabase**.
+Application de rétrospective agile en temps réel.
 
-## Features
+## Architecture
 
-- Email/password auth with role-aware flows (`admin`, `collaborator`)
-- Team-scoped workspace model
-- Theme-driven template system (Candy Crash, Who Wants to Win Millions, The Voice)
-- Live session room with step navigation, timer, participant row, cards and voting view
-- Mini-game framework with quiz questions that can impact vote budget
-- Action tracking across sessions
-- Session history and template editor
-- GitHub Pages static deployment compatible (frontend-only)
-
-## Tech stack
-
-- React
-- Vite
-- TypeScript
-- Tailwind CSS
-- Supabase (Auth, Postgres, Realtime, RLS)
-- Zustand
-- Framer Motion
-- React Router
-
-## Project structure
-
-```text
-src/
-  app/
-  components/
-  features/
-  hooks/
-  lib/
-  pages/
-  styles/
-  types/
-supabase/
-  migrations/
-  seeds/
+```
+client/   → React + TypeScript + Vite + Tailwind (déployé sur GitHub Pages)
+server/   → Node.js + Express + Socket.io + MongoDB (déployé sur Railway/Render)
 ```
 
-## Environment variables
+## Démarrage local
 
-Copy `.env.example` to `.env` and fill values:
-
+### Backend
 ```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_anon_key
-VITE_BASE_PATH=/Retrospective/
-```
-
-## Local development
-
-```bash
+cd server
+cp .env.example .env   # renseigner les variables
 npm install
 npm run dev
 ```
 
-## Build
-
+### Frontend
 ```bash
-npm run build
-npm run preview
+cd client
+npm install
+npm run dev
 ```
 
-## Supabase setup
+## Déploiement
 
-1. Create a Supabase project.
-2. Run `supabase/migrations/20260313194000_init.sql` in SQL editor.
-3. Create auth users (admin + collaborators) in Supabase Auth.
-4. Replace placeholder UUIDs in `supabase/seeds/demo.sql` and run it.
-5. Add environment variables to `.env`.
+### Backend → Railway
+1. Connecter le repo GitHub sur [railway.app](https://railway.app)
+2. Ajouter les variables d'environnement :
+   - `MONGO_URI`
+   - `JWT_SECRET`
+   - `CLIENT_URL` (URL GitHub Pages, ex: `https://user.github.io/Retrospective`)
+3. Railway détecte automatiquement le `railway.json`
 
-## GitHub Pages deployment
+### Frontend → GitHub Pages
+- Se déploie automatiquement sur push `main`
+- Ajouter le secret `VITE_API_URL` dans Settings > Secrets (URL du backend Railway)
 
-- Workflow is defined in `.github/workflows/deploy.yml`.
-- Add repository secrets:
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
-- Push to `main` to deploy.
-- `VITE_BASE_PATH` is set automatically to `/${repo}/` in workflow.
+## Premier démarrage
 
-## Notes
-
-- No custom backend is required.
-- Real-time and persistence are expected to be wired to Supabase channels/tables.
-- The included UI is MVP-ready and structured for iterative enhancement.
+Créer le premier compte admin via l'endpoint :
+```
+POST /api/auth/register-admin
+{
+  "email": "admin@example.com",
+  "password": "motdepasse",
+  "name": "Admin",
+  "workspaceName": "Mon Équipe"
+}
+```
