@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/store/sessionStore';
-import { Card, MiniGame, Participant, Session } from '@/types';
+import { Action, Card, CardGameState, MiniGame, Participant, Session } from '@/types';
 
 export function useSession(sessionId: string) {
   const store = useSessionStore();
@@ -28,6 +28,11 @@ export function useSession(sessionId: string) {
     socket.on('minigame:started', (game: MiniGame) => store.setActiveGame(game));
     socket.on('minigame:revealed', (game: MiniGame) => store.setActiveGame(game));
 
+    socket.on('action:created', (action: Action) => store.addAction(action));
+    socket.on('action:updated', (action: Action) => store.updateAction(action));
+
+    socket.on('cardgame:state', (state: CardGameState | null) => store.setCardGame(state));
+
     return () => {
       socket.off('session:state');
       socket.off('session:participants');
@@ -41,6 +46,9 @@ export function useSession(sessionId: string) {
       socket.off('card:voted');
       socket.off('minigame:started');
       socket.off('minigame:revealed');
+      socket.off('action:created');
+      socket.off('action:updated');
+      socket.off('cardgame:state');
     };
   }, [sessionId]);
 }

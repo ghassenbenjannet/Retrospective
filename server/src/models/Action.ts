@@ -1,6 +1,7 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
 export type ActionStatus = 'todo' | 'in_progress' | 'done' | 'dropped';
+export type ActionPriority = 'prio' | 'top1' | 'top2' | 'top3';
 
 export interface IAction extends Document {
   _id: Types.ObjectId;
@@ -12,6 +13,7 @@ export interface IAction extends Document {
   ownerId: Types.ObjectId;
   ownerName: string;
   status: ActionStatus;
+  priority: ActionPriority | null;
   dueDate: Date | null;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -27,6 +29,7 @@ const actionSchema = new Schema<IAction>(
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     ownerName: { type: String, required: true },
     status: { type: String, enum: ['todo', 'in_progress', 'done', 'dropped'], default: 'todo' },
+    priority: { type: String, enum: ['prio', 'top1', 'top2', 'top3'], default: null },
     dueDate: { type: Date, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },

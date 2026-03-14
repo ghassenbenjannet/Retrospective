@@ -23,6 +23,7 @@ export interface ISession extends Document {
     sections: ISection[];
     initialVotes: number;
     allowMultipleVotesPerCard: boolean;
+    displayMode: 'sections' | 'onepage';
     theme: { primaryColor: string; coverImage: string | null };
   };
   status: SessionStatus;

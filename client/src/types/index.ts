@@ -15,6 +15,7 @@ export type SectionType =
 export interface SectionOption {
   title: string;
   imageUrl: string;
+  answer?: string;
 }
 
 export interface Section {
@@ -42,6 +43,7 @@ export interface Template {
   sections: Section[];
   initialVotes: number;
   allowMultipleVotesPerCard: boolean;
+  displayMode: 'sections' | 'onepage';
   theme: { primaryColor: string; coverImage: string | null };
   createdAt: string;
 }
@@ -68,6 +70,7 @@ export interface Session {
     sections: Section[];
     initialVotes: number;
     allowMultipleVotesPerCard: boolean;
+    displayMode: 'sections' | 'onepage';
     theme: { primaryColor: string; coverImage: string | null };
   };
   status: SessionStatus;
@@ -93,6 +96,7 @@ export interface Card {
 }
 
 export type ActionStatus = 'todo' | 'in_progress' | 'done' | 'dropped';
+export type ActionPriority = 'prio' | 'top1' | 'top2' | 'top3';
 
 export interface Action {
   _id: string;
@@ -104,6 +108,7 @@ export interface Action {
   ownerId: string;
   ownerName: string;
   status: ActionStatus;
+  priority: ActionPriority | null;
   dueDate: string | null;
   createdAt: string;
 }
@@ -117,4 +122,20 @@ export interface MiniGame {
   timeLimitSeconds: number;
   status: 'pending' | 'active' | 'revealed';
   answers: Array<{ userId: string; answer: string; isCorrect: boolean; effect: string }>;
+}
+
+export interface CardGameCard {
+  idx: number;
+  question: string;
+  answer: string;
+  isFlipped: boolean;
+  isAnswerRevealed: boolean;
+}
+
+export interface CardGameState {
+  cards: CardGameCard[];
+  currentPlayerIdx: number;
+  playerOrder: Array<{ userId: string; name: string }>;
+  status: 'idle' | 'active' | 'finished';
+  currentFlippedCardIdx: number | null;
 }
