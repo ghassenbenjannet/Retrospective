@@ -236,6 +236,7 @@ export function LiveSessionPage() {
               key={card._id}
               card={card}
               canVote={session.votingOpen && remainingVotes > 0}
+              hasVoted={myVotedCardIds.has(card._id)}
               isAdmin={isAdmin}
               userId={user?.id ?? ''}
               onVote={delta => handleVote(card._id, delta)}
