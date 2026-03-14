@@ -1,5 +1,6 @@
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, useEffect, useRef } from 'react';
 import { getSocket } from '@/lib/socket';
+import { useAuthStore } from '@/store/authStore';
 import { Send } from 'lucide-react';
 
 interface Props {
@@ -9,13 +10,33 @@ interface Props {
 
 export function AddCardForm({ sessionId, sectionId }: Props) {
   const [content, setContent] = useState('');
+  const { user } = useAuthStore();
   const socket = getSocket();
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const emitStopTyping = () => {
+    socket.emit('user:stopped_typing', { sessionId, sectionId });
+  };
+
+  useEffect(() => () => {
+    emitStopTyping();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+  }, []);
+
+  const handleChange = (val: string) => {
+    setContent(val);
+    socket.emit('user:typing', { sessionId, sectionId, name: user?.name ?? '' });
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(emitStopTyping, 2000);
+  };
 
   const submit = () => {
     const text = content.trim();
     if (!text) return;
     socket.emit('card:create', { sessionId, sectionId, content: text });
     setContent('');
+    emitStopTyping();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -26,7 +47,7 @@ export function AddCardForm({ sessionId, sectionId }: Props) {
     <div className="flex gap-3 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
       <textarea
         value={content}
-        onChange={e => setContent(e.target.value)}
+        onChange={e => handleChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Votre idée... (Entrée pour envoyer)"
         className="flex-1 text-sm resize-none focus:outline-none min-h-[60px]"

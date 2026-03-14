@@ -43,21 +43,23 @@ export function registerSocketHandlers(io: Server): void {
         if (!session) { socket.emit('error', { message: 'Session not found' }); return; }
         let participant = session.participants.find(p => p.userId.toString() === user.userId);
 
-        // Admin can join and will be added as participant for voting if not already
-        if (!participant && user.role === 'admin') {
-          const adminUser = await User.findById(user.userId);
-          session.participants.push({
-            userId: new Types.ObjectId(user.userId),
-            name: adminUser?.name ?? 'Admin',
-            status: 'connected',
-            remainingVotes: session.templateSnapshot.initialVotes,
-            socketId: socket.id,
-            joinedAt: new Date(),
-          } as any);
-          await session.save();
-          participant = session.participants[session.participants.length - 1];
-        } else if (!participant) {
-          socket.emit('error', { message: 'Not a participant' }); return;
+        if (!participant) {
+          // Fallback: add user as participant if missing (shouldn't happen with new session creation)
+          if (user.role === 'admin') {
+            const adminUser = await User.findById(user.userId);
+            session.participants.unshift({
+              userId: new Types.ObjectId(user.userId),
+              name: adminUser?.name ?? 'Admin',
+              status: 'connected',
+              remainingVotes: session.templateSnapshot.initialVotes,
+              socketId: socket.id,
+              joinedAt: new Date(),
+            } as any);
+            await session.save();
+            participant = session.participants[0];
+          } else {
+            socket.emit('error', { message: 'Not a participant' }); return;
+          }
         }
 
         socket.join(sessionId);
@@ -271,6 +273,14 @@ export function registerSocketHandlers(io: Server): void {
     // Cursor move event (real-time cursor tracking)
     socket.on('cursor:move', ({ sessionId, x, y, name }: { sessionId: string; x: number; y: number; name: string }) => {
       socket.to(sessionId).emit('cursor:moved', { userId: user.userId, name, x, y });
+    });
+
+    // Typing indicator
+    socket.on('user:typing', ({ sessionId, sectionId, name }: { sessionId: string; sectionId: string; name: string }) => {
+      socket.to(sessionId).emit('user:typing', { userId: user.userId, sectionId, name });
+    });
+    socket.on('user:stopped_typing', ({ sessionId, sectionId }: { sessionId: string; sectionId: string }) => {
+      socket.to(sessionId).emit('user:stopped_typing', { userId: user.userId, sectionId });
     });
 
     // ===== CARD FLIP GAME =====

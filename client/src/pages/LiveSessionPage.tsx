@@ -14,25 +14,59 @@ import { TimerBar } from '@/components/live/TimerBar';
 import { ActionPanel } from '@/components/live/ActionPanel';
 import { ActionSelectionPanel } from '@/components/live/ActionSelectionPanel';
 import { MoodSection } from '@/components/live/MoodSection';
-import { ChevronLeft, ChevronRight, Vote, Mail, LayoutList, Layout } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Vote, Mail, PenLine,
+  CheckSquare, MessageSquare, Smile, Gamepad2, Layers
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import { clsx } from 'clsx';
+import { Section } from '@/types';
 
-// Color palette for participant avatars
 const AVATAR_COLORS = [
-  'bg-purple-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
-  'bg-red-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
+  '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b',
+  '#ef4444', '#ec4899', '#6366f1', '#14b8a6',
 ];
+
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  mood: <Smile size={14} />,
+  positive: <CheckSquare size={14} />,
+  negative: <MessageSquare size={14} />,
+  brainstorming: <PenLine size={14} />,
+  minigame: <Gamepad2 size={14} />,
+  vote: <Vote size={14} />,
+  action_selection: <Layers size={14} />,
+  action_review: <Layers size={14} />,
+};
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 }
 
+function TypingIndicator({ names }: { names: string[] }) {
+  if (names.length === 0) return null;
+  const label = names.length === 1
+    ? `${names[0]} écrit...`
+    : `${names.slice(0, 2).join(', ')} écrivent...`;
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-400 italic mb-2">
+      <span className="flex gap-0.5">
+        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      </span>
+      {label}
+    </div>
+  );
+}
+
 export function LiveSessionPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
-  const { session, cards, remainingVotes } = useSessionStore();
+  const { session, cards, remainingVotes, typingUsers } = useSessionStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [cursors, setCursors] = useState<Record<string, { name: string; x: number; y: number }>>({});
+  const mainRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [cursors, setCursors] = useState<Record<string, { name: string; x: number; y: number; color: string }>>({});
   const [sendingEmail, setSendingEmail] = useState(false);
 
   useSession(id!);
@@ -53,8 +87,14 @@ export function LiveSessionPage() {
   // Cursor tracking
   useEffect(() => {
     const socket = getSocket();
+    const participantColors: Record<string, string> = {};
+    let colorIdx = 0;
     socket.on('cursor:moved', ({ userId, name, x, y }: { userId: string; name: string; x: number; y: number }) => {
-      setCursors(prev => ({ ...prev, [userId]: { name, x, y } }));
+      if (!participantColors[userId]) {
+        participantColors[userId] = AVATAR_COLORS[colorIdx % AVATAR_COLORS.length];
+        colorIdx++;
+      }
+      setCursors(prev => ({ ...prev, [userId]: { name, x, y, color: participantColors[userId] } }));
     });
     return () => { socket.off('cursor:moved'); };
   }, []);
@@ -67,6 +107,19 @@ export function LiveSessionPage() {
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     socket.emit('cursor:move', { sessionId: id, x, y, name: user?.name ?? '' });
   }, [id, user]);
+
+  // Auto-scroll to active section in onepage mode
+  useEffect(() => {
+    if (!session) return;
+    const displayMode = session.templateSnapshot.displayMode ?? 'sections';
+    if (displayMode !== 'onepage') return;
+    const activeSection = session.templateSnapshot.sections[session.currentSectionIndex];
+    if (!activeSection) return;
+    const el = sectionRefs.current[activeSection._id];
+    if (el && mainRef.current) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [session?.currentSectionIndex]);
 
   if (!session) return (
     <div className="flex items-center justify-center h-screen">
@@ -85,6 +138,7 @@ export function LiveSessionPage() {
   const handlePrevStep = () => socket.emit('session:prev_step', { sessionId: id });
   const handleToggleVoting = () => socket.emit('session:toggle_voting', { sessionId: id, open: !session.votingOpen });
   const handleVote = (cardId: string, delta: number) => socket.emit('card:vote', { sessionId: id, cardId, delta });
+  const handleGoToStep = (i: number) => socket.emit('session:go_to_step', { sessionId: id, index: i });
 
   const connectedParticipants = session.participants.filter(p => p.status === 'connected');
 
@@ -100,15 +154,19 @@ export function LiveSessionPage() {
     }
   };
 
-  // Get all "content" cards (from positive/negative/brainstorming sections) for the vote section
+  // All cards from brainstorming/positive/negative (for vote section)
   const contentSectionTypes = ['positive', 'negative', 'brainstorming'];
   const contentSectionIds = templateSnapshot.sections
     .filter(s => contentSectionTypes.includes(s.type))
     .map(s => s._id);
   const allContentCards = cards.filter(c => contentSectionIds.includes(c.sectionId));
 
-  const renderSectionContent = (section: typeof currentSection, idx: number) => {
+  const getSectionTypingNames = (sectionId: string) =>
+    Object.values(typingUsers[sectionId] ?? {}).filter(Boolean);
+
+  const renderSectionContent = (section: Section) => {
     const sectionCards = cards.filter(c => c.sectionId === section._id);
+    const typingNames = getSectionTypingNames(section._id);
 
     if (section.type === 'action_selection') {
       return <ActionSelectionPanel sessionId={id!} isAdmin={isAdmin} />;
@@ -139,8 +197,7 @@ export function LiveSessionPage() {
       );
     }
     if (section.type === 'vote') {
-      // Show all cards from content sections
-      const votableCards = allContentCards.sort((a, b) => b.voteCount - a.voteCount);
+      const votableCards = [...allContentCards].sort((a, b) => b.voteCount - a.voteCount);
       return (
         <div>
           <p className="text-sm text-gray-500 mb-4">
@@ -170,8 +227,8 @@ export function LiveSessionPage() {
     // Default: positive / negative / brainstorming
     return (
       <>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 mb-4">
-          {sectionCards.sort((a, b) => b.voteCount - a.voteCount).map(card => (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 mb-3">
+          {[...sectionCards].sort((a, b) => b.voteCount - a.voteCount).map(card => (
             <CardItem
               key={card._id}
               card={card}
@@ -183,11 +240,12 @@ export function LiveSessionPage() {
             />
           ))}
           {sectionCards.length === 0 && (
-            <div className="col-span-full text-center py-12 text-gray-400">
+            <div className="col-span-full text-center py-10 text-gray-400">
               Aucune carte. Soyez le premier à contribuer !
             </div>
           )}
         </div>
+        <TypingIndicator names={typingNames} />
         {session.status === 'active' && (
           <AddCardForm sessionId={id!} sectionId={section._id} />
         )}
@@ -195,28 +253,25 @@ export function LiveSessionPage() {
     );
   };
 
-  const renderSectionHeader = (section: typeof currentSection) => (
-    <>
-      {section.imageUrl ? (
-        <div className="mb-5 rounded-2xl overflow-hidden h-40 relative">
-          <img src={section.imageUrl} alt="" className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          <div className="absolute bottom-0 left-0 p-4 text-white">
-            <h2 className="text-2xl font-bold drop-shadow">{section.title}</h2>
-            {section.description && (
-              <p className="text-white/80 text-sm mt-0.5">{section.description}</p>
-            )}
-          </div>
+  const renderSectionHeader = (section: Section) => (
+    section.imageUrl ? (
+      <div className="mb-5 rounded-2xl overflow-hidden h-36 relative">
+        <img src={section.imageUrl} alt="" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="absolute bottom-0 left-0 p-4 text-white">
+          <h2 className="text-xl font-bold drop-shadow">{section.title}</h2>
+          {section.description && <p className="text-white/80 text-sm mt-0.5">{section.description}</p>}
         </div>
-      ) : (
-        <div className="mb-5">
-          <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
-          {section.description && <p className="text-gray-500 text-sm mt-1">{section.description}</p>}
-        </div>
-      )}
-    </>
+      </div>
+    ) : (
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
+        {section.description && <p className="text-gray-500 text-sm mt-1">{section.description}</p>}
+      </div>
+    )
   );
 
+  /* ===================== RENDER ===================== */
   return (
     <div
       ref={containerRef}
@@ -227,159 +282,175 @@ export function LiveSessionPage() {
       {Object.entries(cursors).map(([uid, cursor]) => (
         <div
           key={uid}
-          className="fixed pointer-events-none z-50 transition-all duration-100"
+          className="fixed pointer-events-none z-50 transition-all duration-75"
           style={{ left: `${cursor.x}%`, top: `${cursor.y}%` }}
         >
-          <svg width="16" height="20" viewBox="0 0 16 20" fill="none">
-            <path d="M0 0L0 16L4 12L7 19L9 18L6 11L11 11L0 0Z" fill="#6366f1" stroke="white" strokeWidth="1" />
+          <svg width="14" height="18" viewBox="0 0 14 18">
+            <path d="M0 0L0 14L3.5 10.5L6 17L8 16L5.5 9.5L10 9.5L0 0Z"
+              fill={cursor.color} stroke="white" strokeWidth="1.2" />
           </svg>
-          <span className="ml-3 -mt-1 bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
+          <span
+            className="absolute left-4 top-0 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap font-medium shadow"
+            style={{ backgroundColor: cursor.color }}
+          >
             {cursor.name}
           </span>
         </div>
       ))}
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 flex-shrink-0">
+      {/* ===== TOP HEADER ===== */}
+      <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10">
         {coverImage && (
-          <div className="h-24 w-full overflow-hidden relative">
+          <div className="h-20 w-full overflow-hidden relative">
             <img src={coverImage} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/30" />
-            <h1 className="absolute inset-0 flex items-center px-6 text-white text-xl font-bold drop-shadow">
+            <div className="absolute inset-0 bg-black/35" />
+            <h1 className="absolute inset-0 flex items-center px-6 text-white text-lg font-bold drop-shadow">
               {session.name}
             </h1>
           </div>
         )}
-        <div className="px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            {!coverImage && <h1 className="font-bold text-gray-900 text-lg truncate">{session.name}</h1>}
-            <Badge label={currentSection?.title ?? ''} color="indigo" />
-            {session.votingOpen && <Badge label="Vote ouvert" color="green" />}
-          </div>
+        <div className="px-4 py-2.5 flex items-center gap-3">
+          {/* Session name */}
+          {!coverImage && (
+            <h1 className="font-bold text-gray-900 text-base truncate flex-1 min-w-0">{session.name}</h1>
+          )}
 
-          {/* Participant circles (Miro-style) */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="flex -space-x-2">
-              {connectedParticipants.slice(0, 6).map((p, i) => (
-                <div
-                  key={p.userId}
-                  title={p.name}
-                  className={`w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${AVATAR_COLORS[i % AVATAR_COLORS.length]}`}
-                >
-                  {getInitials(p.name)}
-                </div>
-              ))}
-              {connectedParticipants.length > 6 && (
-                <div className="w-8 h-8 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-white text-xs font-bold">
-                  +{connectedParticipants.length - 6}
+          {/* Current section badge */}
+          <Badge label={currentSection?.title ?? ''} color="indigo" />
+          {session.votingOpen && <Badge label="Vote ouvert" color="green" />}
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Votes remaining */}
+          <span className="text-sm font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg flex items-center gap-1 flex-shrink-0">
+            <Vote size={13} />{remainingVotes}
+          </span>
+
+          {/* Participant circles */}
+          <div className="flex -space-x-2 flex-shrink-0">
+            {connectedParticipants.slice(0, 7).map((p, i) => (
+              <div
+                key={p.userId}
+                title={p.name}
+                className="w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+              >
+                {getInitials(p.name)}
+              </div>
+            ))}
+            {connectedParticipants.length > 7 && (
+              <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-white text-[10px] font-bold">
+                +{connectedParticipants.length - 7}
+              </div>
+            )}
+          </div>
+          {connectedParticipants.length > 0 && (
+            <span className="text-xs text-gray-400 flex-shrink-0">{connectedParticipants.length} en ligne</span>
+          )}
+
+          {/* Admin controls */}
+          {isAdmin && (
+            <>
+              <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
+                {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
+              </Button>
+              {session.status === 'finished' && (
+                <Button size="sm" variant="secondary" onClick={handleSendEmail} loading={sendingEmail}>
+                  <Mail size={13} className="mr-1" />Récap mail
+                </Button>
+              )}
+              {displayMode === 'sections' && (
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={handlePrevStep}
+                    disabled={session.currentSectionIndex === 0}>
+                    <ChevronLeft size={15} />
+                  </Button>
+                  <span className="text-xs text-gray-500 w-10 text-center">
+                    {session.currentSectionIndex + 1}/{templateSnapshot.sections.length}
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={handleNextStep}
+                    disabled={session.currentSectionIndex >= templateSnapshot.sections.length - 1}>
+                    <ChevronRight size={15} />
+                  </Button>
                 </div>
               )}
-            </div>
-            {connectedParticipants.length > 0 && (
-              <span className="text-sm text-gray-500">{connectedParticipants.length} en ligne</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Remaining votes indicator */}
-            <span className="text-sm font-medium text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg flex items-center gap-1">
-              <Vote size={14} />{remainingVotes} votes
-            </span>
-
-            {isAdmin && (
-              <>
-                <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
-                  {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
-                </Button>
-
-                {/* Display mode toggle */}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  title={displayMode === 'sections' ? 'Mode page unique' : 'Mode section par section'}
-                  onClick={() => {
-                    // Visual toggle only - displayMode comes from template snapshot
-                  }}
-                >
-                  {displayMode === 'sections' ? <Layout size={16} /> : <LayoutList size={16} />}
-                </Button>
-
-                {/* Email button (for finished sessions) */}
-                {session.status === 'finished' && (
-                  <Button size="sm" variant="secondary" onClick={handleSendEmail} loading={sendingEmail}>
-                    <Mail size={14} className="mr-1" />Envoyer récap
-                  </Button>
-                )}
-
-                {displayMode === 'sections' && (
-                  <>
-                    <Button size="sm" variant="ghost" onClick={handlePrevStep} disabled={session.currentSectionIndex === 0}>
-                      <ChevronLeft size={16} />
-                    </Button>
-                    <span className="text-sm text-gray-500">
-                      {session.currentSectionIndex + 1} / {templateSnapshot.sections.length}
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={handleNextStep}
-                      disabled={session.currentSectionIndex >= templateSnapshot.sections.length - 1}>
-                      <ChevronRight size={16} />
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </header>
 
       {session.timerEndsAt && <TimerBar endsAt={session.timerEndsAt} />}
 
-      {/* Body */}
-      <div className="flex-1 overflow-auto p-6">
-        {displayMode === 'onepage' ? (
-          /* One Page Mode: all sections visible at once */
-          <div className="max-w-4xl mx-auto space-y-10">
-            {isAdmin && (
-              <div className="flex gap-2 flex-wrap mb-2">
-                {templateSnapshot.sections.map((s, i) => (
-                  <button
-                    key={s._id}
-                    onClick={() => socket.emit('session:go_to_step', { sessionId: id, index: i })}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      i === session.currentSectionIndex
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {s.title}
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* ===== BODY ===== */}
+      {displayMode === 'onepage' ? (
+        /* ONE PAGE MODE: sidebar + scrollable sections */
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left sidebar - section nav (all users see it) */}
+          <aside className="w-52 flex-shrink-0 bg-white border-r border-gray-100 overflow-y-auto py-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase px-4 mb-2 tracking-wide">Sections</p>
+            {templateSnapshot.sections.map((s, i) => {
+              const sectionTypingNames = getSectionTypingNames(s._id);
+              const isActive = i === session.currentSectionIndex;
+              return (
+                <button
+                  key={s._id}
+                  onClick={() => isAdmin ? handleGoToStep(i) : sectionRefs.current[s._id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className={clsx(
+                    'w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm transition-colors relative',
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-700 font-semibold border-r-2 border-indigo-600'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  )}
+                >
+                  <span className={clsx('flex-shrink-0', isActive ? 'text-indigo-600' : 'text-gray-400')}>
+                    {SECTION_ICONS[s.type] ?? <Layers size={14} />}
+                  </span>
+                  <span className="truncate">{s.title}</span>
+                  {sectionTypingNames.length > 0 && (
+                    <span className="ml-auto flex-shrink-0 flex gap-0.5">
+                      <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </aside>
+
+          {/* Scrollable content */}
+          <div ref={mainRef} className="flex-1 overflow-y-auto p-6 space-y-8">
             {templateSnapshot.sections.map((section, idx) => (
               <div
                 key={section._id}
-                id={`section-${section._id}`}
-                className={`bg-white rounded-2xl border p-6 shadow-sm transition-all ${
-                  idx === session.currentSectionIndex ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200'
-                }`}
+                ref={el => { sectionRefs.current[section._id] = el; }}
+                className={clsx(
+                  'bg-white rounded-2xl border p-6 shadow-sm transition-all scroll-mt-4',
+                  idx === session.currentSectionIndex
+                    ? 'border-indigo-400 ring-2 ring-indigo-50 shadow-indigo-100'
+                    : 'border-gray-200'
+                )}
               >
                 {renderSectionHeader(section)}
-                {renderSectionContent(section, idx)}
+                {renderSectionContent(section)}
               </div>
             ))}
           </div>
-        ) : (
-          /* Section by section mode */
+        </div>
+      ) : (
+        /* SECTIONS MODE: one section at a time, synced for everyone */
+        <div className="flex-1 overflow-auto p-6">
           <div className="max-w-4xl mx-auto">
             {currentSection ? (
-              <>
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                 {renderSectionHeader(currentSection)}
-                {renderSectionContent(currentSection, session.currentSectionIndex)}
-              </>
+                {renderSectionContent(currentSection)}
+              </div>
             ) : null}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
