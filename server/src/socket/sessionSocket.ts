@@ -33,13 +33,18 @@ export function registerSocketHandlers(io: Server): void {
         const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
         if (!session) { socket.emit('error', { message: 'Session not found' }); return; }
         const participant = session.participants.find(p => p.userId.toString() === user.userId);
-        if (!participant) { socket.emit('error', { message: 'Not a participant' }); return; }
+        // Admin can join even if not in participants list
+        if (!participant && user.role !== 'admin') {
+          socket.emit('error', { message: 'Not a participant' }); return;
+        }
 
         socket.join(sessionId);
-        participant.status = 'connected';
-        participant.socketId = socket.id;
-        participant.joinedAt = new Date();
-        await session.save();
+        if (participant) {
+          participant.status = 'connected';
+          participant.socketId = socket.id;
+          participant.joinedAt = new Date();
+          await session.save();
+        }
 
         socket.emit('session:state', session);
         io.to(sessionId).emit('session:participants', session.participants);

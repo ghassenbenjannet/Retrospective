@@ -24,8 +24,14 @@ export function LiveSessionPage() {
 
   useSession(id!);
 
-  // Load initial cards
+  // Load session + cards + actions via REST immediately (no wait for socket)
   useEffect(() => {
+    api.get(`/sessions/${id}`).then(r => {
+      const store = useSessionStore.getState();
+      if (!store.session) store.setSession(r.data);
+      const me = r.data.participants?.find((p: any) => p.userId === user?.id);
+      if (me) store.setRemainingVotes(me.remainingVotes);
+    });
     api.get(`/sessions/${id}/cards`).then(r => {
       useSessionStore.getState().setCards(r.data);
     });
