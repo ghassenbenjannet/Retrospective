@@ -12,6 +12,8 @@ interface SessionState {
   cardGame: CardGameState | null;
   remainingVotes: number;
   typingUsers: TypingMap;
+  myVotedCardIds: Set<string>;
+  newCardIds: Set<string>;
   setSession: (s: Session) => void;
   setCards: (cards: Card[]) => void;
   addCard: (card: Card) => void;
@@ -30,6 +32,10 @@ interface SessionState {
   setTimerEndsAt: (date: string | null) => void;
   setUserTyping: (sectionId: string, userId: string, name: string) => void;
   setUserStoppedTyping: (sectionId: string, userId: string) => void;
+  setMyVotedCardIds: (ids: string[]) => void;
+  setMyCardVote: (cardId: string, voted: boolean) => void;
+  markCardNew: (cardId: string) => void;
+  clearNewCard: (cardId: string) => void;
   reset: () => void;
 }
 
@@ -41,6 +47,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   cardGame: null,
   remainingVotes: 0,
   typingUsers: {},
+  myVotedCardIds: new Set(),
+  newCardIds: new Set(),
 
   setSession: (session) => set({ session, remainingVotes: 0 }),
   setCards: (cards) => set({ cards }),
@@ -76,5 +84,19 @@ export const useSessionStore = create<SessionState>((set) => ({
       delete section[userId];
       return { typingUsers: { ...s.typingUsers, [sectionId]: section } };
     }),
-  reset: () => set({ session: null, cards: [], actions: [], activeGame: null, cardGame: null, remainingVotes: 0, typingUsers: {} }),
+  setMyVotedCardIds: (ids) => set({ myVotedCardIds: new Set(ids) }),
+  setMyCardVote: (cardId, voted) =>
+    set(s => {
+      const next = new Set(s.myVotedCardIds);
+      if (voted) next.add(cardId); else next.delete(cardId);
+      return { myVotedCardIds: next };
+    }),
+  markCardNew: (cardId) =>
+    set(s => { const next = new Set(s.newCardIds); next.add(cardId); return { newCardIds: next }; }),
+  clearNewCard: (cardId) =>
+    set(s => { const next = new Set(s.newCardIds); next.delete(cardId); return { newCardIds: next }; }),
+  reset: () => set({
+    session: null, cards: [], actions: [], activeGame: null, cardGame: null,
+    remainingVotes: 0, typingUsers: {}, myVotedCardIds: new Set(), newCardIds: new Set(),
+  }),
 }));

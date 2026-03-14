@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/store/sessionStore';
 import { Action, Card, CardGameState, MiniGame, Participant, Session } from '@/types';
+import { useAuthStore } from '@/store/authStore';
 
 export function useSession(sessionId: string) {
   const store = useSessionStore();
+  const { user } = useAuthStore.getState();
 
   useEffect(() => {
     const socket = getSocket();
@@ -19,11 +21,20 @@ export function useSession(sessionId: string) {
     socket.on('session:votes_updated', ({ remainingVotes }: { remainingVotes: number }) => store.setRemainingVotes(remainingVotes));
     socket.on('session:timer_started', ({ timerEndsAt }: { timerEndsAt: string }) => store.setTimerEndsAt(timerEndsAt));
 
-    socket.on('card:created', (card: Card) => store.addCard(card));
+    socket.on('card:created', (card: Card) => {
+      store.addCard(card);
+      // Mark as "new" if it's from someone else (for animation)
+      if (card.authorId !== user?.id) {
+        store.markCardNew(card._id);
+        setTimeout(() => store.clearNewCard(card._id), 3000);
+      }
+    });
     socket.on('card:updated', (card: Card) => store.updateCard(card));
     socket.on('card:deleted', ({ cardId }: { cardId: string }) => store.removeCard(cardId));
     socket.on('card:voted', ({ cardId, voteCount }: { cardId: string; voteCount: number }) =>
       store.updateCardVotes(cardId, voteCount));
+    socket.on('card:my_vote', ({ cardId, voted }: { cardId: string; voted: boolean }) =>
+      store.setMyCardVote(cardId, voted));
 
     socket.on('minigame:started', (game: MiniGame) => store.setActiveGame(game));
     socket.on('minigame:revealed', (game: MiniGame) => store.setActiveGame(game));
@@ -49,6 +60,7 @@ export function useSession(sessionId: string) {
       socket.off('card:updated');
       socket.off('card:deleted');
       socket.off('card:voted');
+      socket.off('card:my_vote');
       socket.off('minigame:started');
       socket.off('minigame:revealed');
       socket.off('action:created');
