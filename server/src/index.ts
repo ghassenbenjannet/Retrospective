@@ -14,13 +14,25 @@ import { registerSocketHandlers } from './socket/sessionSocket';
 const app = express();
 const httpServer = createServer(app);
 
-const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:5173';
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'https://ghassenbenjannet.github.io',
+].filter(Boolean) as string[];
 
-const io = new SocketServer(httpServer, {
-  cors: { origin: clientUrl, credentials: true },
-});
+const corsOptions = {
+  origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => {
+    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) {
+      cb(null, true);
+    } else {
+      cb(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  credentials: true,
+};
 
-app.use(cors({ origin: clientUrl, credentials: true }));
+const io = new SocketServer(httpServer, { cors: corsOptions });
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
