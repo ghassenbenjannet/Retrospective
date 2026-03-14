@@ -31,15 +31,29 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
     const template = await Template.findOne({ _id: templateId, workspaceId: req.user!.workspaceId, status: 'active' });
     if (!template) { res.status(400).json({ message: 'Template not found or not active' }); return; }
 
-    const users = await User.find({ _id: { $in: participantIds }, workspaceId: req.user!.workspaceId });
-    const participants = users.map(u => ({
-      userId: u._id,
-      name: u.name,
-      status: 'invited' as const,
-      remainingVotes: template.initialVotes,
-      socketId: null,
-      joinedAt: null,
-    }));
+    // Always include admin as first participant (they're the PO, they participate too)
+    const adminUser = await User.findById(req.user!.userId);
+    const otherIds = (participantIds ?? []).filter((pid: string) => pid !== req.user!.userId);
+    const users = await User.find({ _id: { $in: otherIds }, workspaceId: req.user!.workspaceId });
+
+    const participants: any[] = [
+      {
+        userId: new Types.ObjectId(req.user!.userId),
+        name: adminUser?.name ?? 'Admin',
+        status: 'invited' as const,
+        remainingVotes: template.initialVotes,
+        socketId: null,
+        joinedAt: null,
+      },
+      ...users.map(u => ({
+        userId: u._id,
+        name: u.name,
+        status: 'invited' as const,
+        remainingVotes: template.initialVotes,
+        socketId: null,
+        joinedAt: null,
+      })),
+    ];
 
     const session = await Session.create({
       name,

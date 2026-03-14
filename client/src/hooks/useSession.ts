@@ -33,6 +33,11 @@ export function useSession(sessionId: string) {
 
     socket.on('cardgame:state', (state: CardGameState | null) => store.setCardGame(state));
 
+    socket.on('user:typing', ({ userId, sectionId, name }: { userId: string; sectionId: string; name: string }) =>
+      store.setUserTyping(sectionId, userId, name));
+    socket.on('user:stopped_typing', ({ userId, sectionId }: { userId: string; sectionId: string }) =>
+      store.setUserStoppedTyping(sectionId, userId));
+
     return () => {
       socket.off('session:state');
       socket.off('session:participants');
@@ -49,6 +54,8 @@ export function useSession(sessionId: string) {
       socket.off('action:created');
       socket.off('action:updated');
       socket.off('cardgame:state');
+      socket.off('user:typing');
+      socket.off('user:stopped_typing');
     };
   }, [sessionId]);
 }
