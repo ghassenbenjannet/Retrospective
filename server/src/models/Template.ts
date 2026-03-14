@@ -10,17 +10,24 @@ export type SectionType =
   | 'action_selection'
   | 'action_review';
 
+export interface ISectionOption {
+  title: string;
+  imageUrl: string;
+}
+
 export interface ISection {
   _id: Types.ObjectId;
   title: string;
   type: SectionType;
   description: string;
   order: number;
+  imageUrl: string | null;
   allowMultipleCards: boolean;
   maxCardsPerUser: number | null;
   hasTimer: boolean;
   timerSeconds: number | null;
   allowAnonymous: boolean;
+  options: ISectionOption[];
 }
 
 export type TemplateStatus = 'draft' | 'active' | 'archived';
@@ -41,6 +48,11 @@ export interface ITemplate extends Document {
   createdAt: Date;
 }
 
+const sectionOptionSchema = new Schema<ISectionOption>({
+  title: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+}, { _id: false });
+
 const sectionSchema = new Schema<ISection>({
   title: { type: String, required: true },
   type: {
@@ -50,11 +62,13 @@ const sectionSchema = new Schema<ISection>({
   },
   description: { type: String, default: '' },
   order: { type: Number, required: true },
+  imageUrl: { type: String, default: null },
   allowMultipleCards: { type: Boolean, default: true },
   maxCardsPerUser: { type: Number, default: null },
   hasTimer: { type: Boolean, default: false },
   timerSeconds: { type: Number, default: null },
   allowAnonymous: { type: Boolean, default: false },
+  options: { type: [sectionOptionSchema], default: [] },
 });
 
 const templateSchema = new Schema<ITemplate>(

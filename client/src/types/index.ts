@@ -12,16 +12,23 @@ export type SectionType =
   | 'mood' | 'positive' | 'negative' | 'brainstorming'
   | 'minigame' | 'vote' | 'action_selection' | 'action_review';
 
+export interface SectionOption {
+  title: string;
+  imageUrl: string;
+}
+
 export interface Section {
   _id: string;
   title: string;
   type: SectionType;
   description: string;
   order: number;
+  imageUrl: string | null;
   allowMultipleCards: boolean;
   maxCardsPerUser: number | null;
   hasTimer: boolean;
   timerSeconds: number | null;
+  options: SectionOption[];
 }
 
 export type TemplateStatus = 'draft' | 'active' | 'archived';

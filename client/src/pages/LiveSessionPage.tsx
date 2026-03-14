@@ -1,11 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/store/sessionStore';
 import { useAuthStore } from '@/store/authStore';
 import { useSession } from '@/hooks/useSession';
-import { Card } from '../types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { CardItem } from '@/components/live/CardItem';
@@ -13,18 +12,16 @@ import { AddCardForm } from '@/components/live/AddCardForm';
 import { MiniGamePanel } from '@/components/live/MiniGamePanel';
 import { TimerBar } from '@/components/live/TimerBar';
 import { ActionPanel } from '@/components/live/ActionPanel';
+import { MoodSection } from '@/components/live/MoodSection';
 import { ChevronLeft, ChevronRight, Vote, Users } from 'lucide-react';
 
 export function LiveSessionPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { session, cards, actions, activeGame, remainingVotes } = useSessionStore();
-  const [sessionCards, setSessionCards] = useState<Card[]>([]);
+  const { session, cards, activeGame, remainingVotes } = useSessionStore();
 
   useSession(id!);
 
-  // Load session + cards + actions via REST immediately (no wait for socket)
   useEffect(() => {
     api.get(`/sessions/${id}`).then(r => {
       const store = useSessionStore.getState();
@@ -32,17 +29,11 @@ export function LiveSessionPage() {
       const me = r.data.participants?.find((p: any) => p.userId === user?.id);
       if (me) store.setRemainingVotes(me.remainingVotes);
     });
-    api.get(`/sessions/${id}/cards`).then(r => {
-      useSessionStore.getState().setCards(r.data);
-    });
-    api.get(`/sessions/${id}/actions`).then(r => {
-      useSessionStore.getState().setActions(r.data);
-    });
+    api.get(`/sessions/${id}/cards`).then(r => useSessionStore.getState().setCards(r.data));
+    api.get(`/sessions/${id}/actions`).then(r => useSessionStore.getState().setActions(r.data));
   }, [id]);
 
-  useEffect(() => {
-    return () => useSessionStore.getState().reset();
-  }, []);
+  useEffect(() => () => useSessionStore.getState().reset(), []);
 
   if (!session) return (
     <div className="flex items-center justify-center h-screen">
@@ -50,10 +41,12 @@ export function LiveSessionPage() {
     </div>
   );
 
-  const currentSection = session.templateSnapshot.sections[session.currentSectionIndex];
+  const { templateSnapshot } = session;
+  const currentSection = templateSnapshot.sections[session.currentSectionIndex];
   const sectionCards = cards.filter(c => c.sectionId === currentSection?._id);
   const isAdmin = user?.role === 'admin';
   const socket = getSocket();
+  const coverImage = templateSnapshot.theme.coverImage;
 
   const handleNextStep = () => socket.emit('session:next_step', { sessionId: id });
   const handlePrevStep = () => socket.emit('session:prev_step', { sessionId: id });
@@ -64,62 +57,95 @@ export function LiveSessionPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-        <div>
-          <h1 className="font-bold text-gray-900 text-lg">{session.name}</h1>
-          <div className="flex items-center gap-3 mt-1">
-            <Badge label={currentSection?.title ?? ''} color="indigo" />
-            <span className="text-sm text-gray-500 flex items-center gap-1">
-              <Users size={14} />{connectedCount} connectés
-            </span>
-            {session.votingOpen && <Badge label="Vote ouvert" color="green" />}
+      {/* Header with optional cover image */}
+      <header className="bg-white border-b border-gray-200 flex-shrink-0">
+        {coverImage && (
+          <div className="h-24 w-full overflow-hidden relative">
+            <img src={coverImage} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-black/30" />
+            <h1 className="absolute inset-0 flex items-center px-6 text-white text-xl font-bold drop-shadow">
+              {session.name}
+            </h1>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {!isAdmin && (
-            <span className="text-sm font-medium text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg">
-              <Vote size={14} className="inline mr-1" />{remainingVotes} votes restants
-            </span>
-          )}
-          {isAdmin && (
-            <>
-              <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
-                {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handlePrevStep} disabled={session.currentSectionIndex === 0}>
-                <ChevronLeft size={16} />
-              </Button>
-              <span className="text-sm text-gray-500">
-                {session.currentSectionIndex + 1} / {session.templateSnapshot.sections.length}
+        )}
+        <div className="px-6 py-3 flex items-center justify-between">
+          <div>
+            {!coverImage && <h1 className="font-bold text-gray-900 text-lg">{session.name}</h1>}
+            <div className="flex items-center gap-3 mt-1">
+              <Badge label={currentSection?.title ?? ''} color="indigo" />
+              <span className="text-sm text-gray-500 flex items-center gap-1">
+                <Users size={14} />{connectedCount} connectés
               </span>
-              <Button size="sm" variant="ghost" onClick={handleNextStep}
-                disabled={session.currentSectionIndex >= session.templateSnapshot.sections.length - 1}>
-                <ChevronRight size={16} />
-              </Button>
-            </>
-          )}
+              {session.votingOpen && <Badge label="Vote ouvert" color="green" />}
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <span className="text-sm font-medium text-primary-600 bg-primary-50 px-3 py-1.5 rounded-lg flex items-center gap-1">
+                <Vote size={14} />{remainingVotes} votes
+              </span>
+            )}
+            {isAdmin && (
+              <>
+                <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
+                  {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={handlePrevStep} disabled={session.currentSectionIndex === 0}>
+                  <ChevronLeft size={16} />
+                </Button>
+                <span className="text-sm text-gray-500">
+                  {session.currentSectionIndex + 1} / {templateSnapshot.sections.length}
+                </span>
+                <Button size="sm" variant="ghost" onClick={handleNextStep}
+                  disabled={session.currentSectionIndex >= templateSnapshot.sections.length - 1}>
+                  <ChevronRight size={16} />
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Timer */}
       {session.timerEndsAt && <TimerBar endsAt={session.timerEndsAt} />}
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-6">
-        {/* Mini game */}
         {activeGame && <MiniGamePanel game={activeGame} sessionId={id!} />}
 
-        {/* Section content */}
         {currentSection && (
           <div className="max-w-4xl mx-auto">
-            <div className="mb-4">
-              <h2 className="text-xl font-bold text-gray-900">{currentSection.title}</h2>
-              {currentSection.description && <p className="text-gray-500 text-sm mt-1">{currentSection.description}</p>}
-            </div>
+            {/* Section header image */}
+            {currentSection.imageUrl && (
+              <div className="mb-5 rounded-2xl overflow-hidden h-40 relative">
+                <img src={currentSection.imageUrl} alt="" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-4 text-white">
+                  <h2 className="text-2xl font-bold drop-shadow">{currentSection.title}</h2>
+                  {currentSection.description && (
+                    <p className="text-white/80 text-sm mt-0.5">{currentSection.description}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
+            {!currentSection.imageUrl && (
+              <div className="mb-5">
+                <h2 className="text-xl font-bold text-gray-900">{currentSection.title}</h2>
+                {currentSection.description && <p className="text-gray-500 text-sm mt-1">{currentSection.description}</p>}
+              </div>
+            )}
+
+            {/* Section content */}
             {currentSection.type === 'action_selection' || currentSection.type === 'action_review' ? (
               <ActionPanel sessionId={id!} isAdmin={isAdmin} />
+            ) : currentSection.type === 'mood' ? (
+              <MoodSection
+                sessionId={id!}
+                sectionId={currentSection._id}
+                options={currentSection.options ?? []}
+                existingCards={sectionCards}
+                isActive={session.status === 'active'}
+              />
             ) : (
               <>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 mb-4">
