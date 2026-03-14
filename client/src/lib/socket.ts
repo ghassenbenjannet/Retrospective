@@ -8,6 +8,10 @@ export function getSocket(): Socket {
     socket = io(url, {
       auth: { token: localStorage.getItem('token') },
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
   }
   return socket;

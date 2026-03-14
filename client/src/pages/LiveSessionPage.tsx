@@ -62,7 +62,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 export function LiveSessionPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
-  const { session, cards, remainingVotes, typingUsers } = useSessionStore();
+  const { session, cards, remainingVotes, typingUsers, myVotedCardIds, newCardIds } = useSessionStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -80,6 +80,7 @@ export function LiveSessionPage() {
     });
     api.get(`/sessions/${id}/cards`).then(r => useSessionStore.getState().setCards(r.data));
     api.get(`/sessions/${id}/actions`).then(r => useSessionStore.getState().setActions(r.data));
+    api.get(`/sessions/${id}/my-votes`).then(r => useSessionStore.getState().setMyVotedCardIds(r.data));
   }, [id]);
 
   useEffect(() => () => useSessionStore.getState().reset(), []);
@@ -209,6 +210,8 @@ export function LiveSessionPage() {
                 key={card._id}
                 card={card}
                 canVote={session.votingOpen && remainingVotes > 0}
+                hasVoted={myVotedCardIds.has(card._id)}
+                isNew={newCardIds.has(card._id)}
                 isAdmin={isAdmin}
                 userId={user?.id ?? ''}
                 onVote={delta => handleVote(card._id, delta)}

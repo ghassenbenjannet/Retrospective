@@ -195,36 +195,48 @@ export function registerSocketHandlers(io: Server): void {
       io.to(sessionId).emit('card:deleted', { cardId });
     });
 
-    // Vote on card (admin and participants can vote)
+    // Vote on card (admin and participants can vote) — max 1 vote per card per user
     socket.on('card:vote', async ({ sessionId, cardId, delta }: { sessionId: string; cardId: string; delta: number }) => {
       try {
         const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
         if (!session || !session.votingOpen) { socket.emit('error', { message: 'Voting is closed' }); return; }
-        let participant = session.participants.find(p => p.userId.toString() === user.userId);
+        const participant = session.participants.find(p => p.userId.toString() === user.userId);
         if (!participant) { socket.emit('error', { message: 'Not a participant' }); return; }
-        if (delta > 0 && participant.remainingVotes < delta) {
-          socket.emit('error', { message: 'Not enough votes' }); return;
-        }
+
         const card = await Card.findById(cardId);
         if (!card) { socket.emit('error', { message: 'Card not found' }); return; }
 
-        let vote = await Vote.findOne({ sessionId, cardId, userId: user.userId });
-        if (!vote) {
-          if (delta < 0) { socket.emit('error', { message: 'No votes to remove' }); return; }
-          vote = await Vote.create({ sessionId, cardId, userId: user.userId, count: delta });
+        const existingVote = await Vote.findOne({ sessionId, cardId, userId: user.userId });
+        const alreadyVoted = existingVote && existingVote.count > 0;
+
+        if (delta > 0) {
+          // Adding a vote
+          if (alreadyVoted) { socket.emit('error', { message: 'Vous avez déjà voté pour cette carte' }); return; }
+          if (participant.remainingVotes < 1) { socket.emit('error', { message: 'Plus de votes disponibles' }); return; }
+          if (existingVote) {
+            existingVote.count = 1;
+            await existingVote.save();
+          } else {
+            await Vote.create({ sessionId, cardId, userId: user.userId, count: 1 });
+          }
+          card.voteCount += 1;
+          participant.remainingVotes -= 1;
         } else {
-          const newCount = vote.count + delta;
-          if (newCount < 0) { socket.emit('error', { message: 'Cannot have negative votes on card' }); return; }
-          vote.count = newCount;
-          await vote.save();
+          // Removing a vote
+          if (!alreadyVoted) { socket.emit('error', { message: 'Aucun vote à retirer' }); return; }
+          existingVote!.count = 0;
+          await existingVote!.save();
+          card.voteCount = Math.max(0, card.voteCount - 1);
+          participant.remainingVotes += 1;
         }
-        card.voteCount += delta;
+
         await card.save();
-        participant.remainingVotes -= delta;
         await session.save();
 
         io.to(sessionId).emit('card:voted', { cardId, voteCount: card.voteCount });
         socket.emit('session:votes_updated', { remainingVotes: participant.remainingVotes });
+        // Tell the voter which cards they've voted on (their own vote state)
+        socket.emit('card:my_vote', { cardId, voted: delta > 0 });
       } catch {
         socket.emit('error', { message: 'Vote failed' });
       }

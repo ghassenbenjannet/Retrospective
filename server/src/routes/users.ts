@@ -30,6 +30,23 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// PATCH /api/users/:id — admin updates a user
+router.patch('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, email, role, password } = req.body;
+    const user = await User.findOne({ _id: req.params.id, workspaceId: req.user!.workspaceId });
+    if (!user) { res.status(404).json({ message: 'User not found' }); return; }
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (role) user.role = role === 'admin' ? 'admin' : 'collaborator';
+    if (password && password.trim()) user.password = password;
+    await user.save();
+    res.json({ id: user._id, name: user.name, email: user.email, role: user.role, workspaceId: user.workspaceId });
+  } catch {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // DELETE /api/users/:id
 router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
   const user = await User.findOne({ _id: req.params.id, workspaceId: req.user!.workspaceId });

@@ -5,6 +5,7 @@ import { Template } from '../models/Template';
 import { User } from '../models/User';
 import { Card } from '../models/Card';
 import { Action } from '../models/Action';
+import { Vote } from '../models/Vote';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 
@@ -101,6 +102,20 @@ router.get('/:id/cards', async (req: AuthRequest, res: Response) => {
 router.get('/:id/actions', async (req: AuthRequest, res: Response) => {
   const actions = await Action.find({ sessionId: req.params.id });
   res.json(actions);
+});
+
+// DELETE /api/sessions/:id (admin)
+router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  const s = await Session.findOne({ _id: req.params.id, workspaceId: req.user!.workspaceId });
+  if (!s) { res.status(404).json({ message: 'Not found' }); return; }
+  await s.deleteOne();
+  res.json({ message: 'Deleted' });
+});
+
+// GET /api/sessions/:id/my-votes — returns cardIds the current user has voted on
+router.get('/:id/my-votes', async (req: AuthRequest, res: Response) => {
+  const votes = await Vote.find({ sessionId: req.params.id, userId: req.user!.userId, count: { $gt: 0 } });
+  res.json(votes.map(v => v.cardId.toString()));
 });
 
 // POST /api/sessions/:id/send-email (admin)

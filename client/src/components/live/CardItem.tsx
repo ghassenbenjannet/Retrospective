@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { Card } from '@/types';
 import { getSocket } from '@/lib/socket';
-import { ThumbsUp, ThumbsDown, Edit2, Trash2, Check, X } from 'lucide-react';
+import { ThumbsUp, Edit2, Trash2, Check, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface Props {
   card: Card;
   canVote: boolean;
+  hasVoted: boolean;
   isAdmin: boolean;
   userId: string;
   sessionId: string;
+  isNew?: boolean;
   onVote: (delta: number) => void;
 }
 
-export function CardItem({ card, canVote, isAdmin, userId, sessionId, onVote }: Props) {
+export function CardItem({ card, canVote, hasVoted, isAdmin, userId, sessionId, isNew = false, onVote }: Props) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(card.content);
   const isOwner = card.authorId === userId;
@@ -32,11 +34,27 @@ export function CardItem({ card, canVote, isAdmin, userId, sessionId, onVote }: 
     }
   };
 
+  const handleToggleVote = () => {
+    if (hasVoted) {
+      onVote(-1); // remove vote
+    } else if (canVote) {
+      onVote(1); // add vote
+    }
+  };
+
   return (
     <div className={clsx(
-      'bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow',
-      'animate-fade-in'
+      'rounded-xl border p-4 shadow-sm transition-all duration-300',
+      isNew
+        ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-200 animate-pulse-once'
+        : 'bg-white border-gray-200 hover:shadow-md',
     )}>
+      {isNew && (
+        <div className="text-xs font-semibold text-indigo-500 mb-2 flex items-center gap-1">
+          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+          Nouvelle idée !
+        </div>
+      )}
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -55,36 +73,38 @@ export function CardItem({ card, canVote, isAdmin, userId, sessionId, onVote }: 
         <>
           <p className="text-sm text-gray-800 whitespace-pre-wrap mb-3">{card.content}</p>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onVote(1)}
-                disabled={!canVote}
-                className={clsx('flex items-center gap-1 text-sm px-2 py-1 rounded-lg transition-colors',
-                  canVote ? 'text-primary-600 hover:bg-primary-50 cursor-pointer' : 'text-gray-300 cursor-not-allowed')}
-              >
-                <ThumbsUp size={14} />
-                <span className="font-medium">{card.voteCount}</span>
-              </button>
-              {card.voteCount > 0 && (
-                <button
-                  onClick={() => onVote(-1)}
-                  className="text-gray-400 hover:text-gray-600 p-1 rounded"
-                >
-                  <ThumbsDown size={12} />
-                </button>
+            {/* Vote toggle button */}
+            <button
+              onClick={handleToggleVote}
+              disabled={!hasVoted && !canVote}
+              title={hasVoted ? 'Retirer mon vote' : canVote ? 'Voter pour cette carte' : 'Plus de votes disponibles'}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
+                hasVoted
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                  : canVote
+                    ? 'bg-gray-100 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer'
+                    : 'bg-gray-50 text-gray-300 cursor-not-allowed',
               )}
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-400">{card.authorName}</span>
-              {(isOwner || isAdmin) && (
-                <button onClick={() => setEditing(true)} className="text-gray-400 hover:text-gray-600 ml-1">
-                  <Edit2 size={12} />
-                </button>
-              )}
-              {(isOwner || isAdmin) && (
-                <button onClick={handleDelete} className="text-red-400 hover:text-red-600">
-                  <Trash2 size={12} />
-                </button>
+            >
+              <ThumbsUp size={13} className={hasVoted ? 'fill-white' : ''} />
+              <span>{card.voteCount}</span>
+            </button>
+
+            <div className="flex items-center gap-1 text-xs text-gray-400">
+              <span>{card.authorName}</span>
+              {(isOwner || isAdmin) && !editing && (
+                <>
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="text-gray-400 hover:text-gray-600 ml-1 p-1 rounded"
+                  >
+                    <Edit2 size={11} />
+                  </button>
+                  <button onClick={handleDelete} className="text-red-400 hover:text-red-600 p-1 rounded">
+                    <Trash2 size={11} />
+                  </button>
+                </>
               )}
             </div>
           </div>
