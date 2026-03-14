@@ -18,7 +18,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 // POST /api/actions — convert card to action (admin)
 router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, sessionId, sourceCardId, ownerId, dueDate } = req.body;
+    const { title, description, sessionId, sourceCardId, ownerId, dueDate, priority } = req.body;
     const session = await Session.findOne({ _id: sessionId, workspaceId: req.user!.workspaceId });
     if (!session) { res.status(404).json({ message: 'Session not found' }); return; }
     const owner = await User.findOne({ _id: ownerId, workspaceId: req.user!.workspaceId });
@@ -34,6 +34,7 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
       sourceCardId: sourceCardId ? new Types.ObjectId(sourceCardId) : null,
       ownerId: owner._id,
       ownerName: owner.name,
+      priority: priority ?? null,
       dueDate: dueDate ?? null,
       createdBy: new Types.ObjectId(req.user!.userId),
     });
@@ -50,8 +51,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   const isAdmin = req.user!.role === 'admin';
   const isOwner = action.ownerId.toString() === req.user!.userId;
   if (!isAdmin && !isOwner) { res.status(403).json({ message: 'Forbidden' }); return; }
-  const { status, dueDate } = req.body;
+  const { status, dueDate, priority } = req.body;
   if (status) action.status = status;
+  if (priority !== undefined) action.priority = priority;
   if (dueDate !== undefined) action.dueDate = dueDate;
   if (req.body.ownerId && isAdmin) {
     const owner = await User.findOne({ _id: req.body.ownerId, workspaceId: req.user!.workspaceId });

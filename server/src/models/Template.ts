@@ -13,6 +13,7 @@ export type SectionType =
 export interface ISectionOption {
   title: string;
   imageUrl: string;
+  answer?: string;
 }
 
 export interface ISection {
@@ -41,6 +42,7 @@ export interface ITemplate extends Document {
   sections: ISection[];
   initialVotes: number;
   allowMultipleVotesPerCard: boolean;
+  displayMode: 'sections' | 'onepage';
   theme: {
     primaryColor: string;
     coverImage: string | null;
@@ -50,7 +52,8 @@ export interface ITemplate extends Document {
 
 const sectionOptionSchema = new Schema<ISectionOption>({
   title: { type: String, required: true },
-  imageUrl: { type: String, required: true },
+  imageUrl: { type: String, default: '' },
+  answer: { type: String, default: '' },
 }, { _id: false });
 
 const sectionSchema = new Schema<ISection>({
@@ -80,6 +83,7 @@ const templateSchema = new Schema<ITemplate>(
     sections: { type: [sectionSchema], default: [] },
     initialVotes: { type: Number, default: 5 },
     allowMultipleVotesPerCard: { type: Boolean, default: true },
+    displayMode: { type: String, enum: ['sections', 'onepage'], default: 'sections' },
     theme: {
       primaryColor: { type: String, default: '#6366f1' },
       coverImage: { type: String, default: null },

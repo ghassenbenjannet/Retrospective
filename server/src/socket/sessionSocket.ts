@@ -3,12 +3,21 @@ import jwt from 'jsonwebtoken';
 import { Session } from '../models/Session';
 import { Card } from '../models/Card';
 import { Vote } from '../models/Vote';
-import { MiniGame } from '../models/MiniGame';
 import { Action } from '../models/Action';
 import { User } from '../models/User';
 import { Types } from 'mongoose';
 
 interface AuthPayload { userId: string; workspaceId: string; role: string; }
+
+// In-memory card game states per session
+interface CardGameState {
+  cards: Array<{ idx: number; question: string; answer: string; isFlipped: boolean; isAnswerRevealed: boolean }>;
+  currentPlayerIdx: number;
+  playerOrder: Array<{ userId: string; name: string }>;
+  status: 'idle' | 'active' | 'finished';
+  currentFlippedCardIdx: number | null;
+}
+const cardGames = new Map<string, CardGameState>();
 
 export function registerSocketHandlers(io: Server): void {
   // Auth middleware for socket
@@ -32,9 +41,22 @@ export function registerSocketHandlers(io: Server): void {
       try {
         const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
         if (!session) { socket.emit('error', { message: 'Session not found' }); return; }
-        const participant = session.participants.find(p => p.userId.toString() === user.userId);
-        // Admin can join even if not in participants list
-        if (!participant && user.role !== 'admin') {
+        let participant = session.participants.find(p => p.userId.toString() === user.userId);
+
+        // Admin can join and will be added as participant for voting if not already
+        if (!participant && user.role === 'admin') {
+          const adminUser = await User.findById(user.userId);
+          session.participants.push({
+            userId: new Types.ObjectId(user.userId),
+            name: adminUser?.name ?? 'Admin',
+            status: 'connected',
+            remainingVotes: session.templateSnapshot.initialVotes,
+            socketId: socket.id,
+            joinedAt: new Date(),
+          } as any);
+          await session.save();
+          participant = session.participants[session.participants.length - 1];
+        } else if (!participant) {
           socket.emit('error', { message: 'Not a participant' }); return;
         }
 
@@ -47,7 +69,14 @@ export function registerSocketHandlers(io: Server): void {
         }
 
         socket.emit('session:state', session);
+        socket.emit('session:votes_updated', { remainingVotes: participant?.remainingVotes ?? 0 });
         io.to(sessionId).emit('session:participants', session.participants);
+
+        // If card game is active, send current state
+        const game = cardGames.get(sessionId);
+        if (game) {
+          socket.emit('cardgame:state', game);
+        }
       } catch (err) {
         socket.emit('error', { message: 'Join failed' });
       }
@@ -79,6 +108,22 @@ export function registerSocketHandlers(io: Server): void {
       session.currentSectionIndex = Math.max(0, session.currentSectionIndex - 1);
       await session.save();
       io.to(sessionId).emit('session:step_changed', { currentSectionIndex: session.currentSectionIndex });
+    });
+
+    // Admin: jump to section (for onepage mode navigation)
+    socket.on('session:go_to_step', async ({ sessionId, index }: { sessionId: string; index: number }) => {
+      if (user.role !== 'admin') return;
+      const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
+      if (!session) return;
+      const clamped = Math.max(0, Math.min(index, session.templateSnapshot.sections.length - 1));
+      session.currentSectionIndex = clamped;
+      session.votingOpen = false;
+      session.timerEndsAt = null;
+      await session.save();
+      io.to(sessionId).emit('session:step_changed', {
+        currentSectionIndex: session.currentSectionIndex,
+        votingOpen: session.votingOpen,
+      });
     });
 
     // Admin: start timer
@@ -148,12 +193,12 @@ export function registerSocketHandlers(io: Server): void {
       io.to(sessionId).emit('card:deleted', { cardId });
     });
 
-    // Vote on card
+    // Vote on card (admin and participants can vote)
     socket.on('card:vote', async ({ sessionId, cardId, delta }: { sessionId: string; cardId: string; delta: number }) => {
       try {
         const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
         if (!session || !session.votingOpen) { socket.emit('error', { message: 'Voting is closed' }); return; }
-        const participant = session.participants.find(p => p.userId.toString() === user.userId);
+        let participant = session.participants.find(p => p.userId.toString() === user.userId);
         if (!participant) { socket.emit('error', { message: 'Not a participant' }); return; }
         if (delta > 0 && participant.remainingVotes < delta) {
           socket.emit('error', { message: 'Not enough votes' }); return;
@@ -183,55 +228,133 @@ export function registerSocketHandlers(io: Server): void {
       }
     });
 
-    // Admin: launch mini-game
-    socket.on('minigame:launch', async ({ sessionId, question, options, correctAnswer, timeLimitSeconds }:
-      { sessionId: string; question: string; options: string[]; correctAnswer: string; timeLimitSeconds: number }) => {
+    // Admin: promote card to action with priority
+    socket.on('action:create', async ({ sessionId, cardId, priority }:
+      { sessionId: string; cardId: string; priority: string }) => {
       if (user.role !== 'admin') return;
-      const game = await MiniGame.create({
-        sessionId: new Types.ObjectId(sessionId),
-        workspaceId: new Types.ObjectId(user.workspaceId),
-        question, options, correctAnswer, timeLimitSeconds,
-        status: 'active',
-        startedAt: new Date(),
-        createdBy: new Types.ObjectId(user.userId),
-      });
-      io.to(sessionId).emit('minigame:started', game);
-    });
-
-    // Submit mini-game answer
-    socket.on('minigame:answer', async ({ gameId, answer }: { gameId: string; answer: string }) => {
-      const game = await MiniGame.findById(gameId);
-      if (!game || game.status !== 'active') { socket.emit('error', { message: 'Game not active' }); return; }
-      const alreadyAnswered = game.answers.find(a => a.userId.toString() === user.userId);
-      if (alreadyAnswered) { socket.emit('error', { message: 'Already answered' }); return; }
-      const elapsed = (Date.now() - (game.startedAt?.getTime() ?? 0)) / 1000;
-      if (elapsed > game.timeLimitSeconds) { socket.emit('error', { message: 'Time is up' }); return; }
-
-      const isCorrect = answer === game.correctAnswer;
-      const effect = isCorrect ? 'plus_one' : 'minus_one';
-      game.answers.push({ userId: new Types.ObjectId(user.userId), answer, answeredAt: new Date(), isCorrect, effect });
-      await game.save();
-
-      // Apply vote effect
-      const session = await Session.findById(game.sessionId);
-      if (session) {
-        const participant = session.participants.find(p => p.userId.toString() === user.userId);
-        if (participant) {
-          const newVotes = Math.max(0, participant.remainingVotes + (isCorrect ? 1 : -1));
-          participant.remainingVotes = newVotes;
-          await session.save();
-          socket.emit('session:votes_updated', { remainingVotes: newVotes });
+      try {
+        const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
+        if (!session) return;
+        const card = await Card.findById(cardId);
+        if (!card) return;
+        // Check if already an action
+        const existing = await Action.findOne({ sessionId, sourceCardId: cardId });
+        if (existing) {
+          // Update priority if needed
+          if (existing.priority !== priority) {
+            existing.priority = priority as any;
+            await existing.save();
+            io.to(sessionId).emit('action:updated', existing);
+          }
+          return;
         }
+        // Find admin user as owner
+        const adminUser = await User.findById(user.userId);
+        const action = await Action.create({
+          title: card.content,
+          description: '',
+          workspaceId: new Types.ObjectId(user.workspaceId),
+          sessionId: new Types.ObjectId(sessionId),
+          sourceCardId: new Types.ObjectId(cardId),
+          ownerId: new Types.ObjectId(user.userId),
+          ownerName: adminUser?.name ?? 'Admin',
+          priority: priority as any,
+          status: 'todo',
+          createdBy: new Types.ObjectId(user.userId),
+        });
+        io.to(sessionId).emit('action:created', action);
+      } catch {
+        socket.emit('error', { message: 'Failed to create action' });
       }
-      socket.emit('minigame:answer_accepted', { isCorrect, effect });
     });
 
-    // Admin: reveal mini-game answer
-    socket.on('minigame:reveal', async ({ gameId }: { gameId: string }) => {
+    // Cursor move event (real-time cursor tracking)
+    socket.on('cursor:move', ({ sessionId, x, y, name }: { sessionId: string; x: number; y: number; name: string }) => {
+      socket.to(sessionId).emit('cursor:moved', { userId: user.userId, name, x, y });
+    });
+
+    // ===== CARD FLIP GAME =====
+
+    // Admin: start card game
+    socket.on('cardgame:start', async ({ sessionId, sectionId }: { sessionId: string; sectionId: string }) => {
       if (user.role !== 'admin') return;
-      const game = await MiniGame.findByIdAndUpdate(gameId, { status: 'revealed', revealedAt: new Date() }, { new: true });
-      if (!game) return;
-      io.to(game.sessionId.toString()).emit('minigame:revealed', game);
+      const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
+      if (!session) return;
+
+      const section = session.templateSnapshot.sections.find((s: any) => s._id.toString() === sectionId);
+      if (!section || section.type !== 'minigame') return;
+
+      const options = section.options ?? [];
+      const cards = options.map((opt: any, idx: number) => ({
+        idx,
+        question: opt.title ?? '',
+        answer: opt.answer ?? '',
+        isFlipped: false,
+        isAnswerRevealed: false,
+      }));
+
+      // Player order: all connected participants
+      const playerOrder = session.participants
+        .filter((p: any) => p.status === 'connected')
+        .map((p: any) => ({ userId: p.userId.toString(), name: p.name }));
+
+      const gameState: CardGameState = {
+        cards,
+        currentPlayerIdx: 0,
+        playerOrder,
+        status: 'active',
+        currentFlippedCardIdx: null,
+      };
+      cardGames.set(sessionId, gameState);
+      io.to(sessionId).emit('cardgame:state', gameState);
+    });
+
+    // Player: flip a card
+    socket.on('cardgame:flip', ({ sessionId, cardIdx }: { sessionId: string; cardIdx: number }) => {
+      const game = cardGames.get(sessionId);
+      if (!game || game.status !== 'active') return;
+      // Only current player can flip
+      const currentPlayer = game.playerOrder[game.currentPlayerIdx];
+      if (!currentPlayer || currentPlayer.userId !== user.userId) {
+        // Admin can also flip for demonstration
+        if (user.role !== 'admin') return;
+      }
+      if (game.cards[cardIdx]?.isFlipped) return; // already flipped
+      game.cards[cardIdx].isFlipped = true;
+      game.currentFlippedCardIdx = cardIdx;
+      io.to(sessionId).emit('cardgame:state', game);
+    });
+
+    // Anyone: reveal the answer
+    socket.on('cardgame:reveal', ({ sessionId, cardIdx }: { sessionId: string; cardIdx: number }) => {
+      const game = cardGames.get(sessionId);
+      if (!game || game.status !== 'active') return;
+      if (game.cards[cardIdx]) {
+        game.cards[cardIdx].isAnswerRevealed = true;
+        io.to(sessionId).emit('cardgame:state', game);
+      }
+    });
+
+    // Admin: next player
+    socket.on('cardgame:next_player', ({ sessionId }: { sessionId: string }) => {
+      if (user.role !== 'admin') return;
+      const game = cardGames.get(sessionId);
+      if (!game || game.status !== 'active') return;
+      game.currentPlayerIdx = (game.currentPlayerIdx + 1) % game.playerOrder.length;
+      game.currentFlippedCardIdx = null;
+      // Check if all cards flipped
+      const allFlipped = game.cards.every(c => c.isFlipped);
+      if (allFlipped) {
+        game.status = 'finished';
+      }
+      io.to(sessionId).emit('cardgame:state', game);
+    });
+
+    // Admin: reset card game
+    socket.on('cardgame:reset', ({ sessionId }: { sessionId: string }) => {
+      if (user.role !== 'admin') return;
+      cardGames.delete(sessionId);
+      io.to(sessionId).emit('cardgame:state', null);
     });
 
     // Disconnect
