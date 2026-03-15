@@ -8,6 +8,7 @@ interface Props {
   onChange: (value: string) => void;
   onClear: () => void;
   label?: string;
+  hint?: string;          // info sur les dimensions recommandées
   maxWidthPx?: number;    // resize max largeur (défaut 1200)
   quality?: number;       // 0-1 (défaut 0.82)
 }
@@ -37,7 +38,7 @@ function resizeAndCompress(file: File, maxWidth: number, quality: number): Promi
   });
 }
 
-export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 1200, quality = 0.82 }: Props) {
+export function ImageUploader({ value, onChange, onClear, label, hint, maxWidthPx = 1200, quality = 0.82 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -102,12 +103,18 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
 
   return (
     <div>
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      {label && (
+        <div className="flex items-baseline gap-2 mb-1">
+          <label className="block text-sm font-medium text-gray-700">{label}</label>
+          {hint && <span className="text-[10px] text-gray-400 font-normal">{hint}</span>}
+        </div>
+      )}
+      {!label && hint && <p className="text-[10px] text-gray-400 mb-1">{hint}</p>}
 
-      {/* Preview */}
+      {/* Preview — object-contain so the full image is always visible */}
       {value && (
-        <div className="relative rounded-xl overflow-hidden border border-gray-200 group mb-2">
-          <img src={imgSrc(value)} alt="" className="w-full h-36 object-cover" />
+        <div className="relative rounded-xl overflow-hidden border border-gray-200 group mb-2 bg-gray-900">
+          <img src={imgSrc(value)} alt="" className="w-full max-h-40 object-contain mx-auto block" />
           <button
             type="button"
             onClick={handleClear}
