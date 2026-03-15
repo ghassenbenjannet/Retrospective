@@ -5,9 +5,9 @@ import { clsx } from 'clsx';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard',      icon: LayoutDashboard },
+  { to: '/templates', label: 'Templates',       icon: FileText,  adminOnly: true },
   { to: '/sessions',  label: 'Sessions',        icon: PlayCircle },
   { to: '/actions',   label: 'Actions',         icon: CheckSquare },
-  { to: '/templates', label: 'Templates',       icon: FileText,  adminOnly: true },
   { to: '/users',     label: 'Utilisateurs',    icon: Users,     adminOnly: true },
 ];
 
