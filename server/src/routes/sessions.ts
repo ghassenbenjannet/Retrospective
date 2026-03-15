@@ -130,7 +130,14 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
 
     const actions = await Action.find({ sessionId: req.params.id }).sort({ createdAt: 1 });
 
-    // Get all participant users for their emails
+    // Sender — use provided senderUserId or fall back to requesting admin
+    const senderId = req.body.senderUserId ?? req.user!.userId;
+    const senderUser = await User.findOne({ _id: senderId, workspaceId: req.user!.workspaceId });
+    if (!senderUser) { res.status(400).json({ message: 'Sender not found' }); return; }
+    const fromAddress = `"${senderUser.name}" <${process.env.SMTP_USER}>`;
+    const replyTo = senderUser.email;
+
+    // Recipients — participants with a known email in the workspace
     const participantIds = session.participants.map(p => p.userId);
     const users = await User.find({ _id: { $in: participantIds }, workspaceId: req.user!.workspaceId });
     const recipientEmails = users.map(u => u.email).filter(Boolean);
@@ -146,9 +153,23 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
       top3: '🥉 Top 3',
     };
 
-    const coverImage = session.templateSnapshot.theme.coverImage;
+    // Handle cover image: embed base64 as CID attachment, pass through URLs
+    const rawCover = session.templateSnapshot.theme.coverImage;
+    const attachments: nodemailer.SendMailOptions['attachments'] = [];
+    let coverImgTag = '';
+    if (rawCover) {
+      if (rawCover.startsWith('data:image/')) {
+        // Extract mime type and base64 content
+        const [meta, b64] = rawCover.split(',');
+        const mimeMatch = meta.match(/data:(image\/[a-zA-Z+]+);/);
+        const mimeType = mimeMatch?.[1] ?? 'image/jpeg';
+        attachments.push({ filename: 'cover.jpg', content: b64, encoding: 'base64', cid: 'coverimage', contentType: mimeType });
+        coverImgTag = `<img src="cid:coverimage" alt="cover" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:20px;" />`;
+      } else {
+        coverImgTag = `<img src="${rawCover}" alt="cover" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:20px;" />`;
+      }
+    }
 
-    // Build action table HTML
     const actionRows = actions.map(a => `
       <tr>
         <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${a.title}</td>
@@ -161,7 +182,7 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;">
         <h2 style="color:#4f46e5;margin-bottom:4px;">${session.name}</h2>
         <p style="color:#6b7280;margin-top:0;">Récapitulatif de la session rétrospective</p>
-        ${coverImage ? `<img src="${coverImage}" alt="cover" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:20px;" />` : ''}
+        ${coverImgTag}
         <h3 style="color:#111827;margin-bottom:12px;">Tableau des actions</h3>
         ${actions.length > 0 ? `
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
@@ -176,7 +197,7 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
           <tbody>${actionRows}</tbody>
         </table>
         ` : '<p style="color:#6b7280;">Aucune action définie pour cette session.</p>'}
-        <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Envoyé depuis Retrospective Live</p>
+        <p style="color:#9ca3af;font-size:12px;margin-top:24px;">Envoyé par ${senderUser.name} · Retrospective Live</p>
       </div>
     `;
 
@@ -191,10 +212,12 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
     });
 
     await transporter.sendMail({
-      from: process.env.SMTP_FROM ?? process.env.SMTP_USER,
+      from: fromAddress,
+      replyTo,
       to: recipientEmails.join(', '),
       subject: `Rétrospective : ${session.name}`,
       html: emailHtml,
+      attachments,
     });
 
     res.json({ message: 'Emails envoyés avec succès', count: recipientEmails.length });
