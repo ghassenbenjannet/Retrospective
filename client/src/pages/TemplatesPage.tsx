@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { TemplateFormModal } from '@/components/templates/TemplateFormModal';
+import { imgSrc } from '@/lib/imageUrl';
 import { clsx } from 'clsx';
 
 type FilterStatus = 'all' | 'draft' | 'active' | 'archived';
@@ -148,7 +149,7 @@ export function TemplatesPage() {
                   {/* Cover */}
                   <div className="relative h-40 overflow-hidden">
                     {t.theme.coverImage ? (
-                      <img src={t.theme.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={imgSrc(t.theme.coverImage)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     ) : (
                       <div className={clsx('w-full h-full bg-gradient-to-br', gradient, 'group-hover:scale-105 transition-transform duration-500')} />
                     )}

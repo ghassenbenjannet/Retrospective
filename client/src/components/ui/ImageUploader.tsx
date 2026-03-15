@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, DragEvent, ClipboardEvent } from 'react';
 import { UploadCloud, X, Image, Link } from 'lucide-react';
 import { clsx } from 'clsx';
+import { imgSrc } from '@/lib/imageUrl';
 
 interface Props {
   value: string;          // data-url, http url ou vide
@@ -106,7 +107,7 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
       {/* Preview */}
       {value && (
         <div className="relative rounded-xl overflow-hidden border border-gray-200 group mb-2">
-          <img src={value} alt="" className="w-full h-36 object-cover" />
+          <img src={imgSrc(value)} alt="" className="w-full h-36 object-cover" />
           <button
             type="button"
             onClick={handleClear}

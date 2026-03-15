@@ -92,7 +92,7 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
       }
       toast.success(template ? 'Template mis à jour' : 'Template créé');
       onSaved();
-    } catch { toast.error('Erreur lors de la sauvegarde'); }
+    } catch (err: any) { toast.error(err.response?.data?.message ?? 'Erreur lors de la sauvegarde'); }
     finally { setLoading(false); }
   };
 
