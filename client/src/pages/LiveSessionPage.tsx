@@ -14,7 +14,7 @@ import { TimerBar } from '@/components/live/TimerBar';
 import { ActionPanel } from '@/components/live/ActionPanel';
 import { ActionSelectionPanel } from '@/components/live/ActionSelectionPanel';
 import { MoodSection } from '@/components/live/MoodSection';
-import { SpeechTimerWidget } from '@/components/live/SpeechTimerWidget';
+import { SpeechTimerWidget, SpeechTimerBar } from '@/components/live/SpeechTimerWidget';
 import {
   ChevronLeft, ChevronRight, Vote, Mail, PenLine,
   CheckSquare, MessageSquare, Smile, Gamepad2, Layers
@@ -416,6 +416,8 @@ export function LiveSessionPage() {
       </header>
 
       {session.timerEndsAt && <TimerBar endsAt={session.timerEndsAt} />}
+      {/* Speech timer bar — visible to ALL when running */}
+      <SpeechTimerBar speechTimerEndsAt={session.speechTimerEndsAt ?? null} />
 
       {/* ===== BODY ===== */}
       {displayMode === 'onepage' ? (

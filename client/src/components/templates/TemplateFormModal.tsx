@@ -18,6 +18,16 @@ const SECTION_TYPES: { value: SectionType; label: string }[] = [
   { value: 'action_review', label: '📋 Revue des actions' },
 ];
 
+const DEFAULT_SECTIONS: Partial<Section>[] = [
+  { title: "Ressenti de l'équipe", type: 'mood',             description: '', order: 0, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: 1,    hasTimer: false, timerSeconds: null, options: [] },
+  { title: 'Points positifs',      type: 'positive',         description: '', order: 1, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+  { title: 'Points à améliorer',   type: 'negative',         description: '', order: 2, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+  { title: 'Brainstorming',        type: 'brainstorming',    description: '', order: 3, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+  { title: 'Vote',                 type: 'vote',             description: '', order: 4, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+  { title: "Sélection d'actions",  type: 'action_selection', description: '', order: 5, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+  { title: 'Revue des actions',    type: 'action_review',    description: '', order: 6, imageUrl: null, allowMultipleCards: true, maxCardsPerUser: null, hasTimer: false, timerSeconds: null, options: [] },
+];
+
 interface Props {
   template: Template | null;
   onClose: () => void;
@@ -29,7 +39,7 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
   const [initialVotes, setInitialVotes] = useState(template?.initialVotes ?? 3);
   const [coverImage, setCoverImage] = useState(template?.theme.coverImage ?? '');
   const [displayMode, setDisplayMode] = useState<'sections' | 'onepage'>(template?.displayMode ?? 'sections');
-  const [sections, setSections] = useState<Partial<Section>[]>(template?.sections ?? []);
+  const [sections, setSections] = useState<Partial<Section>[]>(template?.sections ?? DEFAULT_SECTIONS);
   const [loading, setLoading] = useState(false);
 
   const addSection = () => {
@@ -113,6 +123,7 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
           {/* Cover image */}
           <ImageUploader
             label="Image de couverture"
+            hint="Recommandé : 1600 × 400 px (format paysage large)"
             value={coverImage}
             onChange={setCoverImage}
             onClear={() => setCoverImage('')}
@@ -190,6 +201,7 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                   {!isGame(s.type as SectionType) && (
                     <ImageUploader
                       label="Image d'en-tête de section"
+                      hint="Recommandé : 800 × 300 px"
                       value={s.imageUrl ?? ''}
                       onChange={v => updateSection(idx, 'imageUrl', v)}
                       onClear={() => updateSection(idx, 'imageUrl', null)}
@@ -219,6 +231,7 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                               placeholder="Titre (ex: Très bien 😊)"
                               className="w-full border border-gray-200 rounded px-2 py-1 text-xs pr-6" />
                             <ImageUploader
+                              hint="Recommandé : carré 400 × 400 px"
                               value={opt.imageUrl}
                               onChange={v => updateOption(idx, oIdx, 'imageUrl', v)}
                               onClear={() => updateOption(idx, oIdx, 'imageUrl', '')}
