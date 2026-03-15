@@ -7,7 +7,7 @@ import { connectDB } from './config/db';
 import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import templateRoutes from './routes/templates';
-import sessionRoutes from './routes/sessions';
+import { createSessionRouter } from './routes/sessions';
 import actionRoutes from './routes/actions';
 import { registerSocketHandlers } from './socket/sessionSocket';
 
@@ -39,7 +39,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/templates', templateRoutes);
-app.use('/api/sessions', sessionRoutes);
+app.use('/api/sessions', createSessionRouter(io));
 app.use('/api/actions', actionRoutes);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
