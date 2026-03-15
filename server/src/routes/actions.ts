@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Server as SocketServer } from 'socket.io';
 import { Action } from '../models/Action';
 import { Card } from '../models/Card';
 import { Session } from '../models/Session';
@@ -6,6 +7,7 @@ import { User } from '../models/User';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 
+export function createActionRouter(io: SocketServer) {
 const router = Router();
 router.use(authenticate);
 
@@ -62,7 +64,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     action.ownerName = owner.name;
   }
   await action.save();
+  // Broadcast to all connected clients in the session room
+  io.to(action.sessionId.toString()).emit('action:updated', action);
   res.json(action);
 });
 
-export default router;
+return router;
+}
