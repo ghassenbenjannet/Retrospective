@@ -10,6 +10,7 @@ import templateRoutes from './routes/templates';
 import { createSessionRouter } from './routes/sessions';
 import { createActionRouter } from './routes/actions';
 import settingsRoutes from './routes/settings';
+import proxyImageRoute from './routes/proxyImage';
 import { registerSocketHandlers } from './socket/sessionSocket';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/sessions', createSessionRouter(io));
 app.use('/api/actions', createActionRouter(io));
 app.use('/api/settings', settingsRoutes);
+app.use('/api/proxy-image', proxyImageRoute);
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

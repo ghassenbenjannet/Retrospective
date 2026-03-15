@@ -4,6 +4,7 @@ import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import { clsx } from 'clsx';
 import { CheckCircle } from 'lucide-react';
+import { imgSrc } from '@/lib/imageUrl';
 
 interface Props {
   sessionId: string;
@@ -52,7 +53,7 @@ export function MoodSection({ sessionId, sectionId, options, existingCards, isAc
             >
               {opt.imageUrl ? (
                 <img
-                  src={opt.imageUrl}
+                  src={imgSrc(opt.imageUrl)}
                   alt={opt.title}
                   className="w-full h-36 object-cover"
                 />
