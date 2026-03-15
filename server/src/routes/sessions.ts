@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import nodemailer from 'nodemailer';
+import { Server as SocketServer } from 'socket.io';
 import { Session } from '../models/Session';
 import { Template } from '../models/Template';
 import { User } from '../models/User';
@@ -9,6 +10,7 @@ import { Vote } from '../models/Vote';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 
+export function createSessionRouter(io: SocketServer) {
 const router = Router();
 router.use(authenticate);
 
@@ -89,6 +91,8 @@ router.patch('/:id/status', requireAdmin, async (req: AuthRequest, res: Response
     { new: true }
   );
   if (!s) { res.status(404).json({ message: 'Not found' }); return; }
+  // Broadcast status change to all connected clients in the session room
+  io.to(req.params.id).emit('session:status_changed', { status: s.status });
   res.json(s);
 });
 
@@ -200,4 +204,5 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
   }
 });
 
-export default router;
+return router;
+}

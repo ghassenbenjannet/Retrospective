@@ -15,6 +15,7 @@ interface SessionState {
   myVotedCardIds: Set<string>;
   newCardIds: Set<string>;
   setSession: (s: Session) => void;
+  setSessionStatus: (status: string) => void;
   setCards: (cards: Card[]) => void;
   addCard: (card: Card) => void;
   updateCard: (card: Card) => void;
@@ -50,7 +51,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   myVotedCardIds: new Set(),
   newCardIds: new Set(),
 
-  setSession: (session) => set({ session, remainingVotes: 0 }),
+  setSession: (session) => set({ session }),
+  setSessionStatus: (status) =>
+    set(s => s.session ? { session: { ...s.session, status: status as any } } : {}),
   setCards: (cards) => set({ cards }),
   addCard: (card) => set(s => ({ cards: [...s.cards, card] })),
   updateCard: (card) => set(s => ({ cards: s.cards.map(c => c._id === card._id ? card : c) })),

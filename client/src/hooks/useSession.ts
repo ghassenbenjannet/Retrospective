@@ -19,6 +19,7 @@ export function useSession(sessionId: string) {
     socket.on('connect', rejoin);
 
     socket.on('session:state', (session: Session) => store.setSession(session));
+    socket.on('session:status_changed', ({ status }: { status: string }) => store.setSessionStatus(status));
     socket.on('session:participants', (participants: Participant[]) => store.setParticipants(participants));
     socket.on('session:step_changed', store.setStepChanged);
     socket.on('session:voting_changed', ({ votingOpen }: { votingOpen: boolean }) => store.setVotingOpen(votingOpen));
@@ -55,6 +56,7 @@ export function useSession(sessionId: string) {
 
     return () => {
       socket.off('session:state');
+      socket.off('session:status_changed');
       socket.off('session:participants');
       socket.off('session:step_changed');
       socket.off('session:voting_changed');
