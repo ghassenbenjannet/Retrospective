@@ -29,6 +29,11 @@ export interface ISection {
   timerSeconds: number | null;
   allowAnonymous: boolean;
   options: ISectionOption[];
+  // Minigame config
+  gameWinVotes: number;
+  gameLoseEffect: 'vote' | 'gage';
+  gameLoseVotes: number;
+  gameLoseGage: string;
 }
 
 export type TemplateStatus = 'draft' | 'active' | 'archived';
@@ -72,6 +77,10 @@ const sectionSchema = new Schema<ISection>({
   timerSeconds: { type: Number, default: null },
   allowAnonymous: { type: Boolean, default: false },
   options: { type: [sectionOptionSchema], default: [] },
+  gameWinVotes: { type: Number, default: 1 },
+  gameLoseEffect: { type: String, enum: ['vote', 'gage'], default: 'vote' },
+  gameLoseVotes: { type: Number, default: 1 },
+  gameLoseGage: { type: String, default: '' },
 });
 
 const templateSchema = new Schema<ITemplate>(
