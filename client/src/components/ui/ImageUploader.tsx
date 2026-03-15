@@ -1,15 +1,17 @@
 import { useRef, useState, useCallback, DragEvent, ClipboardEvent } from 'react';
-import { UploadCloud, X, Image } from 'lucide-react';
+import { UploadCloud, X, Image, Link } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface Props {
-  value: string;          // data-url ou url http
-  onChange: (dataUrl: string) => void;
+  value: string;          // data-url, http url ou vide
+  onChange: (value: string) => void;
   onClear: () => void;
   label?: string;
   maxWidthPx?: number;    // resize max largeur (défaut 1200)
   quality?: number;       // 0-1 (défaut 0.82)
 }
+
+type Tab = 'upload' | 'url';
 
 function resizeAndCompress(file: File, maxWidth: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -38,6 +40,11 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  // If current value is a URL (not base64), start on url tab
+  const isUrl = value.startsWith('http://') || value.startsWith('https://');
+  const [tab, setTab] = useState<Tab>(isUrl ? 'url' : 'upload');
+  const [urlInput, setUrlInput] = useState(isUrl ? value : '');
+  const [urlError, setUrlError] = useState(false);
 
   const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) return;
@@ -70,31 +77,74 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
     e.target.value = '';
   };
 
+  const applyUrl = () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) { onClear(); setUrlError(false); return; }
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      setUrlError(true); return;
+    }
+    setUrlError(false);
+    onChange(trimmed);
+  };
+
+  const handleClear = () => {
+    onClear();
+    setUrlInput('');
+    setUrlError(false);
+  };
+
+  const switchTab = (t: Tab) => {
+    setTab(t);
+    // Clear value when switching tabs so there's no stale image
+    if (value) handleClear();
+  };
+
   return (
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
 
-      {value ? (
-        <div className="relative rounded-xl overflow-hidden border border-gray-200 group">
+      {/* Preview */}
+      {value && (
+        <div className="relative rounded-xl overflow-hidden border border-gray-200 group mb-2">
           <img src={value} alt="" className="w-full h-36 object-cover" />
           <button
             type="button"
-            onClick={onClear}
+            onClick={handleClear}
             className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-colors"
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Tab switcher */}
+      {!value && (
+        <div className="flex rounded-lg border border-gray-200 overflow-hidden mb-2 text-xs font-medium">
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
-            className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors"
+            onClick={() => switchTab('upload')}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 transition-colors',
+              tab === 'upload' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50',
+            )}
           >
-            <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-medium bg-black/50 px-3 py-1.5 rounded-full transition-opacity">
-              Changer l'image
-            </span>
+            <UploadCloud size={12} /> Importer
+          </button>
+          <button
+            type="button"
+            onClick={() => switchTab('url')}
+            className={clsx(
+              'flex-1 flex items-center justify-center gap-1.5 py-1.5 transition-colors border-l border-gray-200',
+              tab === 'url' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50',
+            )}
+          >
+            <Link size={12} /> URL
           </button>
         </div>
-      ) : (
+      )}
+
+      {/* Upload zone */}
+      {!value && tab === 'upload' && (
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
@@ -104,28 +154,49 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
           tabIndex={0}
           onKeyDown={e => e.key === 'Enter' && inputRef.current?.click()}
           className={clsx(
-            'flex flex-col items-center justify-center gap-2 h-28 rounded-xl border-2 border-dashed cursor-pointer transition-all outline-none',
+            'flex flex-col items-center justify-center gap-2 h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all outline-none',
             dragging
-              ? 'border-primary-500 bg-primary-50 scale-[1.01]'
-              : 'border-gray-200 hover:border-primary-400 hover:bg-gray-50',
+              ? 'border-indigo-500 bg-indigo-50 scale-[1.01]'
+              : 'border-gray-200 hover:border-indigo-400 hover:bg-gray-50',
             loading && 'pointer-events-none opacity-60'
           )}
         >
           {loading ? (
-            <div className="animate-spin w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full" />
+            <div className="animate-spin w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full" />
           ) : (
             <>
               <div className="p-2 bg-gray-100 rounded-lg">
-                {dragging ? <UploadCloud size={20} className="text-primary-600" /> : <Image size={20} className="text-gray-400" />}
+                {dragging ? <UploadCloud size={18} className="text-indigo-600" /> : <Image size={18} className="text-gray-400" />}
               </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-gray-600">
-                  Glisser-déposer, <span className="text-primary-600 underline">parcourir</span> ou coller
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">JPG, PNG, WEBP · compressé automatiquement</p>
-              </div>
+              <p className="text-xs text-gray-500 text-center">
+                Glisser-déposer, <span className="text-indigo-600 underline">parcourir</span> ou coller
+              </p>
             </>
           )}
+        </div>
+      )}
+
+      {/* URL input zone */}
+      {!value && tab === 'url' && (
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={e => { setUrlInput(e.target.value); setUrlError(false); }}
+              onKeyDown={e => e.key === 'Enter' && applyUrl()}
+              onBlur={applyUrl}
+              placeholder="https://example.com/image.jpg"
+              className={clsx(
+                'flex-1 border rounded-lg px-3 py-2 text-sm outline-none transition-colors',
+                urlError ? 'border-red-400 focus:ring-red-300' : 'border-gray-300 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200',
+              )}
+            />
+          </div>
+          {urlError && (
+            <p className="text-xs text-red-500">URL invalide — commence par https://</p>
+          )}
+          <p className="text-xs text-gray-400">L'image sera chargée depuis cette URL dans les sessions.</p>
         </div>
       )}
 
