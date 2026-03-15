@@ -69,13 +69,22 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
   const handleSave = async () => {
     if (!name.trim()) { toast.error('Nom requis'); return; }
     if (sections.length === 0) { toast.error('Au moins une section requise'); return; }
+
+    const payload = {
+      name, initialVotes, displayMode,
+      theme: { primaryColor: '#6366f1', coverImage: coverImage || null },
+      sections: sections.map((s, i) => ({ ...s, order: i })),
+    };
+
+    // Guard against Railway's 1 MB proxy limit (base64 images)
+    const payloadSize = new Blob([JSON.stringify(payload)]).size;
+    if (payloadSize > 900_000) {
+      toast.error(`Payload trop lourd (${(payloadSize / 1024).toFixed(0)} Ko). Réduis la taille ou le nombre d'images.`);
+      return;
+    }
+
     setLoading(true);
     try {
-      const payload = {
-        name, initialVotes, displayMode,
-        theme: { primaryColor: '#6366f1', coverImage: coverImage || null },
-        sections: sections.map((s, i) => ({ ...s, order: i })),
-      };
       if (template) {
         await api.put(`/templates/${template._id}`, payload);
       } else {
@@ -107,6 +116,8 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
             value={coverImage}
             onChange={setCoverImage}
             onClear={() => setCoverImage('')}
+            maxWidthPx={700}
+            quality={0.65}
           />
 
           <div>
@@ -182,7 +193,8 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                       value={s.imageUrl ?? ''}
                       onChange={v => updateSection(idx, 'imageUrl', v)}
                       onClear={() => updateSection(idx, 'imageUrl', null)}
-                      maxWidthPx={900}
+                      maxWidthPx={480}
+                      quality={0.62}
                     />
                   )}
 
@@ -210,8 +222,8 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                               value={opt.imageUrl}
                               onChange={v => updateOption(idx, oIdx, 'imageUrl', v)}
                               onClear={() => updateOption(idx, oIdx, 'imageUrl', '')}
-                              maxWidthPx={600}
-                              quality={0.78}
+                              maxWidthPx={320}
+                              quality={0.60}
                             />
                           </div>
                         ))}
