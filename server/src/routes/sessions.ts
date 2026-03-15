@@ -72,7 +72,7 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
         theme: template.theme,
       },
       participants,
-      maxActions: maxActions ?? 3,
+      maxActions: maxActions ?? 60,
       createdBy: new Types.ObjectId(req.user!.userId),
     });
     res.status(201).json(session);

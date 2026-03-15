@@ -26,7 +26,7 @@ interface Props {
 
 export function TemplateFormModal({ template, onClose, onSaved }: Props) {
   const [name, setName] = useState(template?.name ?? '');
-  const [initialVotes, setInitialVotes] = useState(template?.initialVotes ?? 5);
+  const [initialVotes, setInitialVotes] = useState(template?.initialVotes ?? 3);
   const [coverImage, setCoverImage] = useState(template?.theme.coverImage ?? '');
   const [displayMode, setDisplayMode] = useState<'sections' | 'onepage'>(template?.displayMode ?? 'sections');
   const [sections, setSections] = useState<Partial<Section>[]>(template?.sections ?? []);
