@@ -7,6 +7,7 @@ import { User } from '../models/User';
 import { Card } from '../models/Card';
 import { Action } from '../models/Action';
 import { Vote } from '../models/Vote';
+import { Workspace } from '../models/Workspace';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 
@@ -128,16 +129,20 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
     const session = await Session.findOne({ _id: req.params.id, workspaceId: req.user!.workspaceId });
     if (!session) { res.status(404).json({ message: 'Session not found' }); return; }
 
+    // Load workspace settings
+    const workspace = await Workspace.findById(req.user!.workspaceId);
+    const emailSettings = workspace?.emailSettings ?? { defaultSenderUserId: null, sectionTypesToInclude: [] };
+
     const actions = await Action.find({ sessionId: req.params.id }).sort({ createdAt: 1 });
 
-    // Sender — use provided senderUserId or fall back to requesting admin
-    const senderId = req.body.senderUserId ?? req.user!.userId;
+    // Sender — use provided senderUserId, then workspace default, then requesting admin
+    const senderId = req.body.senderUserId ?? emailSettings.defaultSenderUserId?.toString() ?? req.user!.userId;
     const senderUser = await User.findOne({ _id: senderId, workspaceId: req.user!.workspaceId });
     if (!senderUser) { res.status(400).json({ message: 'Sender not found' }); return; }
     const fromAddress = `"${senderUser.name}" <${process.env.SMTP_USER}>`;
     const replyTo = senderUser.email;
 
-    // Recipients — participants with a known email in the workspace
+    // Recipients — invited participants with a known email in the workspace
     const participantIds = session.participants.map(p => p.userId);
     const users = await User.find({ _id: { $in: participantIds }, workspaceId: req.user!.workspaceId });
     const recipientEmails = users.map(u => u.email).filter(Boolean);
@@ -159,7 +164,6 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
     let coverImgTag = '';
     if (rawCover) {
       if (rawCover.startsWith('data:image/')) {
-        // Extract mime type and base64 content
         const [meta, b64] = rawCover.split(',');
         const mimeMatch = meta.match(/data:(image\/[a-zA-Z+]+);/);
         const mimeType = mimeMatch?.[1] ?? 'image/jpeg';
@@ -168,6 +172,37 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
       } else {
         coverImgTag = `<img src="${rawCover}" alt="cover" style="width:100%;height:180px;object-fit:cover;border-radius:12px;margin-bottom:20px;" />`;
       }
+    }
+
+    // Section cards — only for section types chosen in workspace settings
+    const sectionTypesToInclude = emailSettings.sectionTypesToInclude ?? [];
+    let sectionCardsHtml = '';
+    if (sectionTypesToInclude.length > 0) {
+      const allCards = await Card.find({ sessionId: req.params.id }).sort({ voteCount: -1 });
+      const sectionsToShow = session.templateSnapshot.sections.filter(
+        (s: any) => sectionTypesToInclude.includes(s.type)
+      );
+      sectionCardsHtml = sectionsToShow.map((section: any) => {
+        const sectionCards = allCards.filter(c => c.sectionId.toString() === section._id.toString());
+        if (sectionCards.length === 0) return '';
+        const rows = sectionCards.map(c =>
+          `<tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${c.content}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#6b7280;">${c.authorName}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">👍 ${c.voteCount}</td>
+          </tr>`
+        ).join('');
+        return `
+          <h3 style="color:#111827;margin-top:28px;margin-bottom:10px;">${section.title}</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead><tr style="background:#f3f4f6;">
+              <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Contribution</th>
+              <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Auteur</th>
+              <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">Votes</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`;
+      }).join('');
     }
 
     const actionRows = actions.map(a => `
@@ -183,7 +218,8 @@ router.post('/:id/send-email', requireAdmin, async (req: AuthRequest, res: Respo
         <h2 style="color:#4f46e5;margin-bottom:4px;">${session.name}</h2>
         <p style="color:#6b7280;margin-top:0;">Récapitulatif de la session rétrospective</p>
         ${coverImgTag}
-        <h3 style="color:#111827;margin-bottom:12px;">Tableau des actions</h3>
+        ${sectionCardsHtml}
+        <h3 style="color:#111827;margin-top:28px;margin-bottom:12px;">Tableau des actions</h3>
         ${actions.length > 0 ? `
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           <thead>

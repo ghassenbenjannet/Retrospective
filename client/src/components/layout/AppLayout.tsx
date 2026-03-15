@@ -1,6 +1,6 @@
 import { Link, useNavigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
-import { LayoutDashboard, Users, FileText, PlayCircle, CheckSquare, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, PlayCircle, CheckSquare, LogOut, Zap, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/actions',   label: 'Actions',         icon: CheckSquare },
   { to: '/templates', label: 'Templates',       icon: FileText,  adminOnly: true },
   { to: '/users',     label: 'Utilisateurs',    icon: Users,     adminOnly: true },
+  { to: '/settings',  label: 'Paramètres',      icon: Settings,  adminOnly: true },
 ];
 
 export function AppLayout() {
