@@ -371,18 +371,17 @@ export function LiveSessionPage() {
       {/* ===== TOP HEADER ===== */}
       <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10 shadow-sm">
         {coverImage && (
-          <div className="w-full bg-gray-900 relative flex items-center justify-center overflow-hidden" style={{ maxHeight: '5rem' }}>
-            {/* Cover image — object-contain so it shows entirely */}
-            <img src={imgSrc(coverImage)} alt="" className="max-h-20 w-full object-contain" />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30 pointer-events-none" />
-            <h1 className="absolute left-5 text-white text-base font-bold drop-shadow-md">
+          <div className="w-full bg-gray-900 relative flex items-center justify-center overflow-hidden" style={{ maxHeight: '9rem' }}>
+            <img src={imgSrc(coverImage)} alt="" className="w-full object-cover" style={{ maxHeight: '9rem' }} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+            <h1 className="absolute bottom-3 left-4 text-white text-lg font-bold drop-shadow-lg">
               {session.name}
             </h1>
           </div>
         )}
-        <div className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
+        <div className="px-4 py-2 flex items-center gap-2 flex-wrap min-h-[2.75rem]">
           {!coverImage && (
-            <h1 className="font-bold text-gray-900 text-base truncate min-w-0 mr-1">{session.name}</h1>
+            <h1 className="font-bold text-gray-900 text-sm truncate min-w-0 mr-1">{session.name}</h1>
           )}
 
           <Badge label={currentSection?.title ?? ''} color="indigo" />

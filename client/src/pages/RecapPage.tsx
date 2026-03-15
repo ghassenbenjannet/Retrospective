@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 import { Session, Card, Action, User } from '@/types';
 import { Card as CardUI } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { ArrowLeft, ThumbsUp, Mail } from 'lucide-react';
+import { ArrowLeft, ThumbsUp, Mail, Copy, Check } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 
@@ -100,6 +100,7 @@ export function RecapPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
   const [workspaceUsers, setWorkspaceUsers] = useState<User[]>([]);
+  const [copied, setCopied] = useState(false);
 
   const isAdmin = me?.role === 'admin';
 
@@ -110,21 +111,35 @@ export function RecapPage() {
     if (isAdmin) api.get('/users').then(r => setWorkspaceUsers(r.data));
   }, [id, isAdmin]);
 
-  const openMailto = () => {
-    if (!session) return;
+  const buildEmail = () => {
+    if (!session) return { subject: '', body: '', emails: [] };
     const subject = `Rétrospective : ${session.name}`;
     const body = buildMailtoBody(session, cards, actions);
-
-    // Build recipient list from session participants + workspace users
     const participantIds = new Set(session.participants.map(p => p.userId));
     const emails = workspaceUsers
       .filter(u => participantIds.has(u.id))
       .map(u => u.email)
       .filter(Boolean);
+    return { subject, body, emails };
+  };
 
+  const openMailto = () => {
+    const { subject, body, emails } = buildEmail();
     const mailto = `mailto:${emails.join(',')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.open(mailto, '_blank');
     toast.success('Messagerie ouverte avec le récapitulatif pré-rempli');
+  };
+
+  const copyToClipboard = async () => {
+    const { body } = buildEmail();
+    try {
+      await navigator.clipboard.writeText(body);
+      setCopied(true);
+      toast.success('Contenu copié dans le presse-papier');
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      toast.error('Impossible de copier');
+    }
   };
 
   if (!session) return (
@@ -156,12 +171,21 @@ export function RecapPage() {
               Ouvre votre messagerie avec le résumé pré-rempli (ressenti, sprint, actions) — destinataires : {session.participants.length} participant{session.participants.length > 1 ? 's' : ''}.
             </p>
           </div>
-          <button
-            onClick={openMailto}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors flex-shrink-0"
-          >
-            <Mail size={14} /> Préparer l'email
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={copyToClipboard}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              {copied ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              {copied ? 'Copié !' : 'Copier'}
+            </button>
+            <button
+              onClick={openMailto}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              <Mail size={14} /> Ouvrir messagerie
+            </button>
+          </div>
         </div>
       )}
 
