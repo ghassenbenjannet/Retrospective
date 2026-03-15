@@ -3,7 +3,7 @@ import { useSessionStore } from '@/store/sessionStore';
 import { Action, ActionStatus } from '@/types';
 import { api } from '@/lib/api';
 import { clsx } from 'clsx';
-import { CheckCircle, Clock, XCircle, Loader2, User, Calendar } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Loader2, User, Calendar, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const COLUMNS: { id: ActionStatus; label: string }[] = [
@@ -30,7 +30,7 @@ const StatusIcon = ({ status }: { status: ActionStatus }) => {
 interface Props { sessionId: string; isAdmin: boolean; }
 
 export function ActionPanel({ sessionId, isAdmin }: Props) {
-  const { actions, setActions, updateAction } = useSessionStore();
+  const { actions, setActions, updateAction, removeAction } = useSessionStore();
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<ActionStatus | null>(null);
   const dragAction = useRef<Action | null>(null);
@@ -38,6 +38,16 @@ export function ActionPanel({ sessionId, isAdmin }: Props) {
   useEffect(() => {
     api.get(`/sessions/${sessionId}/actions`).then(r => setActions(r.data));
   }, [sessionId]);
+
+  const deleteAction = async (action: Action) => {
+    if (!confirm(`Supprimer l'action "${action.title}" ?`)) return;
+    try {
+      await api.delete(`/actions/${action._id}`);
+      removeAction(action._id);
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
   const patchStatus = async (action: Action, status: ActionStatus) => {
     if (action.status === status) return;
@@ -124,7 +134,16 @@ export function ActionPanel({ sessionId, isAdmin }: Props) {
                     >
                       <div className="flex items-start gap-1.5 mb-1">
                         <StatusIcon status={action.status} />
-                        <p className="text-sm font-medium text-gray-900 leading-tight">{action.title}</p>
+                        <p className="text-sm font-medium text-gray-900 leading-tight flex-1">{action.title}</p>
+                        {isAdmin && (
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteAction(action); }}
+                            className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                       {action.description && (
                         <p className="text-xs text-gray-500 mb-2 line-clamp-2">{action.description}</p>

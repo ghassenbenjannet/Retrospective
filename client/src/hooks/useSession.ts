@@ -47,6 +47,7 @@ export function useSession(sessionId: string) {
 
     socket.on('action:created', (action: Action) => store.addAction(action));
     socket.on('action:updated', (action: Action) => store.updateAction(action));
+    socket.on('action:deleted', ({ _id }: { _id: string }) => store.removeAction(_id));
 
     socket.on('cardgame:state', (state: CardGameState | null) => store.setCardGame(state));
 
@@ -77,6 +78,7 @@ export function useSession(sessionId: string) {
       socket.off('minigame:revealed');
       socket.off('action:created');
       socket.off('action:updated');
+      socket.off('action:deleted');
       socket.off('cardgame:state');
       socket.off('user:typing');
       socket.off('user:stopped_typing');

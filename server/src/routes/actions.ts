@@ -69,5 +69,13 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   res.json(action);
 });
 
+// DELETE /api/actions/:id — admin only
+router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  const action = await Action.findOneAndDelete({ _id: req.params.id, workspaceId: req.user!.workspaceId });
+  if (!action) { res.status(404).json({ message: 'Not found' }); return; }
+  io.to(action.sessionId.toString()).emit('action:deleted', { _id: req.params.id });
+  res.status(204).end();
+});
+
 return router;
 }
