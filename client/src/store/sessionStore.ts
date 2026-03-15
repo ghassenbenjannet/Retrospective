@@ -14,6 +14,7 @@ interface SessionState {
   typingUsers: TypingMap;
   myVotedCardIds: Set<string>;
   newCardIds: Set<string>;
+  sectionDoneUsers: Record<string, string[]>;
   setSession: (s: Session) => void;
   setSessionStatus: (status: string) => void;
   setCards: (cards: Card[]) => void;
@@ -39,6 +40,7 @@ interface SessionState {
   setMyCardVote: (cardId: string, voted: boolean) => void;
   markCardNew: (cardId: string) => void;
   clearNewCard: (cardId: string) => void;
+  setSectionDoneUsers: (sectionId: string, userIds: string[]) => void;
   reset: () => void;
 }
 
@@ -52,6 +54,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   typingUsers: {},
   myVotedCardIds: new Set(),
   newCardIds: new Set(),
+  sectionDoneUsers: {},
 
   setSession: (session) => set({ session }),
   setSessionStatus: (status) =>
@@ -103,8 +106,11 @@ export const useSessionStore = create<SessionState>((set) => ({
     set(s => { const next = new Set(s.newCardIds); next.add(cardId); return { newCardIds: next }; }),
   clearNewCard: (cardId) =>
     set(s => { const next = new Set(s.newCardIds); next.delete(cardId); return { newCardIds: next }; }),
+  setSectionDoneUsers: (sectionId, userIds) =>
+    set(s => ({ sectionDoneUsers: { ...s.sectionDoneUsers, [sectionId]: userIds } })),
   reset: () => set({
     session: null, cards: [], actions: [], activeGame: null, cardGame: null,
     remainingVotes: 0, typingUsers: {}, myVotedCardIds: new Set(), newCardIds: new Set(),
+    sectionDoneUsers: {},
   }),
 }));

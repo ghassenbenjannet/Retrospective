@@ -12,9 +12,10 @@ interface Props {
   options: SectionOption[];
   existingCards: Card[];
   isActive: boolean;
+  isDone: boolean;
 }
 
-export function MoodSection({ sessionId, sectionId, options, existingCards, isActive }: Props) {
+export function MoodSection({ sessionId, sectionId, options, existingCards, isActive, isDone }: Props) {
   const { user } = useAuthStore();
   const socket = getSocket();
 
@@ -22,14 +23,24 @@ export function MoodSection({ sessionId, sectionId, options, existingCards, isAc
   const [selected, setSelected] = useState<string | null>(myCard?.content ?? null);
 
   const handleSelect = (title: string) => {
-    if (!isActive || myCard) return;
+    if (!isActive || isDone) return;
+    if (myCard?.content === title) return; // same choice
+    if (myCard) {
+      // Delete old card before creating new one
+      socket.emit('card:delete', { cardId: myCard._id });
+    }
     setSelected(title);
     socket.emit('card:create', { sessionId, sectionId, content: title });
   };
 
   return (
     <div className="max-w-4xl mx-auto">
-      {myCard && (
+      {myCard && !isDone && (
+        <p className="text-center text-sm text-indigo-700 font-semibold mb-5 bg-indigo-50 rounded-xl py-2.5 px-4 border border-indigo-200">
+          Vous avez choisi : <strong>{myCard.content}</strong> — vous pouvez encore changer votre choix.
+        </p>
+      )}
+      {myCard && isDone && (
         <p className="text-center text-sm text-emerald-700 font-semibold mb-5 bg-emerald-50 rounded-xl py-2.5 px-4 border border-emerald-200">
           ✅ Vous avez choisi : <strong>{myCard.content}</strong>
         </p>
@@ -42,13 +53,13 @@ export function MoodSection({ sessionId, sectionId, options, existingCards, isAc
             <button
               key={opt.title}
               onClick={() => handleSelect(opt.title)}
-              disabled={!isActive || !!myCard}
+              disabled={!isActive || isDone}
               className={clsx(
                 'relative rounded-2xl overflow-hidden border-2 transition-all duration-200 text-left shadow-sm',
                 isMyChoice
                   ? 'border-indigo-500 ring-2 ring-indigo-200 scale-[1.03] shadow-indigo-100'
                   : 'border-gray-100 hover:border-indigo-300 hover:shadow-md',
-                (!isActive || !!myCard) && !isMyChoice && 'opacity-60 cursor-default',
+                (!isActive || isDone) && !isMyChoice && 'opacity-60 cursor-default',
               )}
             >
               {/* Image — aspect-square + object-contain so full image always visible */}
