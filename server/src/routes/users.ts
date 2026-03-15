@@ -9,7 +9,7 @@ router.use(authenticate);
 // GET /api/users — list workspace users (admin)
 router.get('/', requireAdmin, async (req: AuthRequest, res: Response) => {
   const users = await User.find({ workspaceId: req.user!.workspaceId }).select('-password');
-  res.json(users);
+  res.json(users.map(u => ({ id: u._id, name: u.name, email: u.email, role: u.role, workspaceId: u.workspaceId })));
 });
 
 // POST /api/users — admin creates a collaborator

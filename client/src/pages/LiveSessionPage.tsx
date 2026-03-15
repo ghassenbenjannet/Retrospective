@@ -141,6 +141,14 @@ export function LiveSessionPage() {
   const handleVote = (cardId: string, delta: number) => socket.emit('card:vote', { sessionId: id, cardId, delta });
   const handleGoToStep = (i: number) => socket.emit('session:go_to_step', { sessionId: id, index: i });
 
+  const handleSetStatus = async (status: string) => {
+    try {
+      await api.patch(`/sessions/${id}/status`, { status });
+    } catch {
+      toast.error('Erreur lors du changement de statut');
+    }
+  };
+
   const connectedParticipants = session.participants.filter(p => p.status === 'connected');
 
   const handleSendEmail = async () => {
@@ -155,10 +163,9 @@ export function LiveSessionPage() {
     }
   };
 
-  // All cards from brainstorming/positive/negative (for vote section)
-  const contentSectionTypes = ['positive', 'negative', 'brainstorming'];
+  // All cards from brainstorming sections only (for vote section)
   const contentSectionIds = templateSnapshot.sections
-    .filter(s => contentSectionTypes.includes(s.type))
+    .filter(s => s.type === 'brainstorming')
     .map(s => s._id);
   const allContentCards = cards.filter(c => contentSectionIds.includes(c.sectionId));
 
@@ -356,28 +363,40 @@ export function LiveSessionPage() {
           {/* Admin controls */}
           {isAdmin && (
             <>
-              <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
-                {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
-              </Button>
+              {session.status === 'lobby' && (
+                <Button size="sm" onClick={() => handleSetStatus('active')}>
+                  Démarrer
+                </Button>
+              )}
+              {session.status === 'active' && (
+                <>
+                  <Button size="sm" variant="secondary" onClick={handleToggleVoting}>
+                    {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
+                  </Button>
+                  {displayMode === 'sections' && (
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={handlePrevStep}
+                        disabled={session.currentSectionIndex === 0}>
+                        <ChevronLeft size={15} />
+                      </Button>
+                      <span className="text-xs text-gray-500 w-10 text-center">
+                        {session.currentSectionIndex + 1}/{templateSnapshot.sections.length}
+                      </span>
+                      <Button size="sm" variant="ghost" onClick={handleNextStep}
+                        disabled={session.currentSectionIndex >= templateSnapshot.sections.length - 1}>
+                        <ChevronRight size={15} />
+                      </Button>
+                    </div>
+                  )}
+                  <Button size="sm" variant="secondary" onClick={() => handleSetStatus('finished')}>
+                    Terminer
+                  </Button>
+                </>
+              )}
               {session.status === 'finished' && (
                 <Button size="sm" variant="secondary" onClick={handleSendEmail} loading={sendingEmail}>
                   <Mail size={13} className="mr-1" />Récap mail
                 </Button>
-              )}
-              {displayMode === 'sections' && (
-                <div className="flex items-center gap-1">
-                  <Button size="sm" variant="ghost" onClick={handlePrevStep}
-                    disabled={session.currentSectionIndex === 0}>
-                    <ChevronLeft size={15} />
-                  </Button>
-                  <span className="text-xs text-gray-500 w-10 text-center">
-                    {session.currentSectionIndex + 1}/{templateSnapshot.sections.length}
-                  </span>
-                  <Button size="sm" variant="ghost" onClick={handleNextStep}
-                    disabled={session.currentSectionIndex >= templateSnapshot.sections.length - 1}>
-                    <ChevronRight size={15} />
-                  </Button>
-                </div>
               )}
             </>
           )}

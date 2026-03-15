@@ -24,6 +24,7 @@ interface SessionState {
   setActions: (actions: Action[]) => void;
   addAction: (action: Action) => void;
   updateAction: (action: Action) => void;
+  removeAction: (actionId: string) => void;
   setParticipants: (participants: Participant[]) => void;
   setStepChanged: (data: { currentSectionIndex: number; votingOpen?: boolean }) => void;
   setVotingOpen: (open: boolean) => void;
@@ -63,6 +64,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setActions: (actions) => set({ actions }),
   addAction: (action) => set(s => ({ actions: [...s.actions, action] })),
   updateAction: (action) => set(s => ({ actions: s.actions.map(a => a._id === action._id ? action : a) })),
+  removeAction: (actionId) => set(s => ({ actions: s.actions.filter(a => a._id !== actionId) })),
   setParticipants: (participants) =>
     set(s => s.session ? { session: { ...s.session, participants } } : {}),
   setStepChanged: ({ currentSectionIndex, votingOpen }) =>

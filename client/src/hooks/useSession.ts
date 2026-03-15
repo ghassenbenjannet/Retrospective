@@ -3,6 +3,7 @@ import { getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/store/sessionStore';
 import { Action, Card, CardGameState, MiniGame, Participant, Session } from '@/types';
 import { useAuthStore } from '@/store/authStore';
+import toast from 'react-hot-toast';
 
 export function useSession(sessionId: string) {
   const store = useSessionStore();
@@ -46,6 +47,7 @@ export function useSession(sessionId: string) {
 
     socket.on('action:created', (action: Action) => store.addAction(action));
     socket.on('action:updated', (action: Action) => store.updateAction(action));
+    socket.on('action:deleted', ({ _id }: { _id: string }) => store.removeAction(_id));
 
     socket.on('cardgame:state', (state: CardGameState | null) => store.setCardGame(state));
 
@@ -53,6 +55,11 @@ export function useSession(sessionId: string) {
       store.setUserTyping(sectionId, userId, name));
     socket.on('user:stopped_typing', ({ userId, sectionId }: { userId: string; sectionId: string }) =>
       store.setUserStoppedTyping(sectionId, userId));
+
+    socket.on('error', ({ message }: { message: string }) => {
+      console.error('[socket error]', message);
+      toast.error(message);
+    });
 
     return () => {
       socket.off('session:state');
@@ -71,9 +78,11 @@ export function useSession(sessionId: string) {
       socket.off('minigame:revealed');
       socket.off('action:created');
       socket.off('action:updated');
+      socket.off('action:deleted');
       socket.off('cardgame:state');
       socket.off('user:typing');
       socket.off('user:stopped_typing');
+      socket.off('error');
       socket.off('connect', rejoin);
     };
   }, [sessionId]);
