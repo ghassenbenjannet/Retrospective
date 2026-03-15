@@ -83,6 +83,7 @@ export interface Session {
   participants: Participant[];
   votingOpen: boolean;
   timerEndsAt: string | null;
+  speechTimerEndsAt: string | null;
   maxActions: number;
   createdBy: string;
   createdAt: string;

@@ -31,6 +31,7 @@ export interface ISession extends Document {
   participants: IParticipant[];
   votingOpen: boolean;
   timerEndsAt: Date | null;
+  speechTimerEndsAt: Date | null;
   maxActions: number;
   createdBy: Types.ObjectId;
   createdAt: Date;
@@ -60,6 +61,7 @@ const sessionSchema = new Schema<ISession>(
     participants: { type: [participantSchema], default: [] },
     votingOpen: { type: Boolean, default: false },
     timerEndsAt: { type: Date, default: null },
+    speechTimerEndsAt: { type: Date, default: null },
     maxActions: { type: Number, default: 3 },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },

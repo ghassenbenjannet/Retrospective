@@ -14,6 +14,7 @@ import { TimerBar } from '@/components/live/TimerBar';
 import { ActionPanel } from '@/components/live/ActionPanel';
 import { ActionSelectionPanel } from '@/components/live/ActionSelectionPanel';
 import { MoodSection } from '@/components/live/MoodSection';
+import { SpeechTimerWidget } from '@/components/live/SpeechTimerWidget';
 import {
   ChevronLeft, ChevronRight, Vote, Mail, PenLine,
   CheckSquare, MessageSquare, Smile, Gamepad2, Layers
@@ -267,16 +268,21 @@ export function LiveSessionPage() {
 
   const renderSectionHeader = (section: Section) => (
     section.imageUrl ? (
-      <div className="mb-5 rounded-2xl overflow-hidden h-36 relative">
-        <img src={imgSrc(section.imageUrl)} alt="" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        <div className="absolute bottom-0 left-0 p-4 text-white">
-          <h2 className="text-xl font-bold drop-shadow">{section.title}</h2>
-          {section.description && <p className="text-white/80 text-sm mt-0.5">{section.description}</p>}
+      <div className="mb-6 rounded-2xl overflow-hidden relative bg-gray-900" style={{ minHeight: '9rem' }}>
+        {/* Full image — object-contain so it's always entirely visible */}
+        <img
+          src={imgSrc(section.imageUrl)}
+          alt=""
+          className="w-full max-h-56 object-contain mx-auto block"
+        />
+        {/* Title bar below image */}
+        <div className="px-4 py-3 bg-white border-t border-gray-100">
+          <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
+          {section.description && <p className="text-gray-500 text-sm mt-0.5">{section.description}</p>}
         </div>
       </div>
     ) : (
-      <div className="mb-5">
+      <div className="mb-5 pb-4 border-b border-gray-100">
         <h2 className="text-xl font-bold text-gray-900">{section.title}</h2>
         {section.description && <p className="text-gray-500 text-sm mt-1">{section.description}</p>}
       </div>
@@ -311,37 +317,44 @@ export function LiveSessionPage() {
       ))}
 
       {/* ===== TOP HEADER ===== */}
-      <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10">
+      <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10 shadow-sm">
         {coverImage && (
-          <div className="h-20 w-full overflow-hidden relative">
-            <img src={imgSrc(coverImage)} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/35" />
-            <h1 className="absolute inset-0 flex items-center px-6 text-white text-lg font-bold drop-shadow">
+          <div className="w-full bg-gray-900 relative flex items-center justify-center overflow-hidden" style={{ maxHeight: '5rem' }}>
+            {/* Cover image — object-contain so it shows entirely */}
+            <img src={imgSrc(coverImage)} alt="" className="max-h-20 w-full object-contain" />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30 pointer-events-none" />
+            <h1 className="absolute left-5 text-white text-base font-bold drop-shadow-md">
               {session.name}
             </h1>
           </div>
         )}
-        <div className="px-4 py-2.5 flex items-center gap-3">
-          {/* Session name */}
+        <div className="px-4 py-2.5 flex items-center gap-2 flex-wrap">
           {!coverImage && (
-            <h1 className="font-bold text-gray-900 text-base truncate flex-1 min-w-0">{session.name}</h1>
+            <h1 className="font-bold text-gray-900 text-base truncate min-w-0 mr-1">{session.name}</h1>
           )}
 
-          {/* Current section badge */}
           <Badge label={currentSection?.title ?? ''} color="indigo" />
           {session.votingOpen && <Badge label="Vote ouvert" color="green" />}
 
-          {/* Spacer */}
           <div className="flex-1" />
+
+          {/* Speech timer widget — visible to all when active, controls to admin */}
+          {session.status === 'active' && (
+            <SpeechTimerWidget
+              sessionId={id!}
+              isAdmin={isAdmin}
+              speechTimerEndsAt={session.speechTimerEndsAt ?? null}
+            />
+          )}
 
           {/* Votes remaining */}
           <span className="text-sm font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg flex items-center gap-1 flex-shrink-0">
             <Vote size={13} />{remainingVotes}
           </span>
 
-          {/* Participant circles */}
+          {/* Participant avatars */}
           <div className="flex -space-x-2 flex-shrink-0">
-            {connectedParticipants.slice(0, 7).map((p, i) => (
+            {connectedParticipants.slice(0, 6).map((p, i) => (
               <div
                 key={p.userId}
                 title={p.name}
@@ -351,9 +364,9 @@ export function LiveSessionPage() {
                 {getInitials(p.name)}
               </div>
             ))}
-            {connectedParticipants.length > 7 && (
+            {connectedParticipants.length > 6 && (
               <div className="w-7 h-7 rounded-full border-2 border-white bg-gray-400 flex items-center justify-center text-white text-[10px] font-bold">
-                +{connectedParticipants.length - 7}
+                +{connectedParticipants.length - 6}
               </div>
             )}
           </div>
@@ -365,9 +378,7 @@ export function LiveSessionPage() {
           {isAdmin && (
             <>
               {session.status === 'lobby' && (
-                <Button size="sm" onClick={() => handleSetStatus('active')}>
-                  Démarrer
-                </Button>
+                <Button size="sm" onClick={() => handleSetStatus('active')}>Démarrer</Button>
               )}
               {session.status === 'active' && (
                 <>
@@ -375,12 +386,12 @@ export function LiveSessionPage() {
                     {session.votingOpen ? 'Clôturer vote' : 'Ouvrir vote'}
                   </Button>
                   {displayMode === 'sections' && (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 bg-gray-50 rounded-lg px-1">
                       <Button size="sm" variant="ghost" onClick={handlePrevStep}
                         disabled={session.currentSectionIndex === 0}>
                         <ChevronLeft size={15} />
                       </Button>
-                      <span className="text-xs text-gray-500 w-10 text-center">
+                      <span className="text-xs text-gray-500 w-10 text-center font-medium">
                         {session.currentSectionIndex + 1}/{templateSnapshot.sections.length}
                       </span>
                       <Button size="sm" variant="ghost" onClick={handleNextStep}

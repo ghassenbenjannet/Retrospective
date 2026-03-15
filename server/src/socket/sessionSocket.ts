@@ -146,6 +146,27 @@ export function registerSocketHandlers(io: Server): void {
       io.to(sessionId).emit('session:timer_started', { timerEndsAt: session.timerEndsAt });
     });
 
+    // Admin: start speech timer (prise de parole)
+    socket.on('speech_timer:start', async ({ sessionId, seconds }: { sessionId: string; seconds: number }) => {
+      if (user.role !== 'admin') return;
+      const endsAt = new Date(Date.now() + seconds * 1000);
+      await Session.findOneAndUpdate(
+        { _id: sessionId, workspaceId: user.workspaceId },
+        { speechTimerEndsAt: endsAt }
+      );
+      io.to(sessionId).emit('speech_timer:started', { speechTimerEndsAt: endsAt });
+    });
+
+    // Admin: stop speech timer
+    socket.on('speech_timer:stop', async ({ sessionId }: { sessionId: string }) => {
+      if (user.role !== 'admin') return;
+      await Session.findOneAndUpdate(
+        { _id: sessionId, workspaceId: user.workspaceId },
+        { speechTimerEndsAt: null }
+      );
+      io.to(sessionId).emit('speech_timer:stopped');
+    });
+
     // Admin: open/close voting
     socket.on('session:toggle_voting', async ({ sessionId, open }: { sessionId: string; open: boolean }) => {
       if (user.role !== 'admin') return;

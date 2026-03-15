@@ -26,6 +26,8 @@ export function useSession(sessionId: string) {
     socket.on('session:voting_changed', ({ votingOpen }: { votingOpen: boolean }) => store.setVotingOpen(votingOpen));
     socket.on('session:votes_updated', ({ remainingVotes }: { remainingVotes: number }) => store.setRemainingVotes(remainingVotes));
     socket.on('session:timer_started', ({ timerEndsAt }: { timerEndsAt: string }) => store.setTimerEndsAt(timerEndsAt));
+    socket.on('speech_timer:started', ({ speechTimerEndsAt }: { speechTimerEndsAt: string }) => store.setSpeechTimerEndsAt(speechTimerEndsAt));
+    socket.on('speech_timer:stopped', () => store.setSpeechTimerEndsAt(null));
 
     socket.on('card:created', (card: Card) => {
       store.addCard(card);
@@ -69,6 +71,8 @@ export function useSession(sessionId: string) {
       socket.off('session:voting_changed');
       socket.off('session:votes_updated');
       socket.off('session:timer_started');
+    socket.off('speech_timer:started');
+    socket.off('speech_timer:stopped');
       socket.off('card:created');
       socket.off('card:updated');
       socket.off('card:deleted');

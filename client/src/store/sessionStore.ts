@@ -32,6 +32,7 @@ interface SessionState {
   setActiveGame: (game: MiniGame | null) => void;
   setCardGame: (game: CardGameState | null) => void;
   setTimerEndsAt: (date: string | null) => void;
+  setSpeechTimerEndsAt: (date: string | null) => void;
   setUserTyping: (sectionId: string, userId: string, name: string) => void;
   setUserStoppedTyping: (sectionId: string, userId: string) => void;
   setMyVotedCardIds: (ids: string[]) => void;
@@ -76,6 +77,8 @@ export const useSessionStore = create<SessionState>((set) => ({
   setCardGame: (cardGame) => set({ cardGame }),
   setTimerEndsAt: (timerEndsAt) =>
     set(s => s.session ? { session: { ...s.session, timerEndsAt } } : {}),
+  setSpeechTimerEndsAt: (speechTimerEndsAt) =>
+    set(s => s.session ? { session: { ...s.session, speechTimerEndsAt } } : {}),
   setUserTyping: (sectionId, userId, name) =>
     set(s => ({
       typingUsers: {
