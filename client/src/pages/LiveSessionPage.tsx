@@ -267,7 +267,7 @@ export function LiveSessionPage() {
   const renderSectionHeader = (section: Section) => (
     section.imageUrl ? (
       <div className="mb-5 rounded-2xl overflow-hidden h-36 relative">
-        <img src={section.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+        <img src={section.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         <div className="absolute bottom-0 left-0 p-4 text-white">
           <h2 className="text-xl font-bold drop-shadow">{section.title}</h2>
@@ -313,7 +313,7 @@ export function LiveSessionPage() {
       <header className="bg-white border-b border-gray-200 flex-shrink-0 z-10">
         {coverImage && (
           <div className="h-20 w-full overflow-hidden relative">
-            <img src={coverImage} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+            <img src={coverImage} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             <div className="absolute inset-0 bg-black/35" />
             <h1 className="absolute inset-0 flex items-center px-6 text-white text-lg font-bold drop-shadow">
               {session.name}
