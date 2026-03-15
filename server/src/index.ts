@@ -8,7 +8,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import templateRoutes from './routes/templates';
 import { createSessionRouter } from './routes/sessions';
-import actionRoutes from './routes/actions';
+import { createActionRouter } from './routes/actions';
 import { registerSocketHandlers } from './socket/sessionSocket';
 
 const app = express();
@@ -40,7 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/sessions', createSessionRouter(io));
-app.use('/api/actions', actionRoutes);
+app.use('/api/actions', createActionRouter(io));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

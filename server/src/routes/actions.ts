@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Server as SocketServer } from 'socket.io';
 import { Action } from '../models/Action';
 import { Card } from '../models/Card';
 import { Session } from '../models/Session';
@@ -6,6 +7,7 @@ import { User } from '../models/User';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 import { Types } from 'mongoose';
 
+export function createActionRouter(io: SocketServer) {
 const router = Router();
 router.use(authenticate);
 
@@ -62,7 +64,18 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     action.ownerName = owner.name;
   }
   await action.save();
+  // Broadcast to all connected clients in the session room
+  io.to(action.sessionId.toString()).emit('action:updated', action);
   res.json(action);
 });
 
-export default router;
+// DELETE /api/actions/:id — admin only
+router.delete('/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+  const action = await Action.findOneAndDelete({ _id: req.params.id, workspaceId: req.user!.workspaceId });
+  if (!action) { res.status(404).json({ message: 'Not found' }); return; }
+  io.to(action.sessionId.toString()).emit('action:deleted', { _id: req.params.id });
+  res.status(204).end();
+});
+
+return router;
+}

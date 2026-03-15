@@ -280,31 +280,25 @@ export function TemplateFormModal({ template, onClose, onSaved }: Props) {
                             className="w-14 border border-gray-200 rounded px-2 py-1 text-xs" />
                           <span className="text-xs text-gray-500">vote(s)</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-600 w-16">Perdu :</span>
-                          <select
-                            value={(s as any).gameLoseEffect ?? 'vote'}
-                            onChange={e => updateSection(idx, 'gameLoseEffect', e.target.value)}
-                            className="border border-gray-200 rounded px-2 py-1 text-xs">
-                            <option value="vote">Perdre des votes</option>
-                            <option value="gage">Gage</option>
-                          </select>
-                          {((s as any).gameLoseEffect ?? 'vote') === 'vote' ? (
-                            <>
-                              <span className="text-xs text-red-600 font-medium">−</span>
-                              <input type="number" min={0} max={5}
-                                value={(s as any).gameLoseVotes ?? 1}
-                                onChange={e => updateSection(idx, 'gameLoseVotes', Number(e.target.value))}
-                                className="w-14 border border-gray-200 rounded px-2 py-1 text-xs" />
-                              <span className="text-xs text-gray-500">vote(s)</span>
-                            </>
-                          ) : (
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-600 w-16">Perdu :</span>
+                            <span className="text-xs text-red-600 font-medium">−</span>
+                            <input type="number" min={0} max={5}
+                              value={(s as any).gameLoseVotes ?? 1}
+                              onChange={e => updateSection(idx, 'gameLoseVotes', Number(e.target.value))}
+                              className="w-14 border border-gray-200 rounded px-2 py-1 text-xs" />
+                            <span className="text-xs text-gray-500">vote(s) si pas de gage</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-600 w-16">Gage :</span>
                             <input type="text"
                               value={(s as any).gameLoseGage ?? ''}
                               onChange={e => updateSection(idx, 'gameLoseGage', e.target.value)}
-                              placeholder="Ex: Faire 10 pompes..."
+                              placeholder="Optionnel — ex: Faire 10 pompes..."
                               className="flex-1 border border-gray-200 rounded px-2 py-1 text-xs" />
-                          )}
+                          </div>
+                          <p className="text-xs text-gray-400 pl-20">Si le gage est renseigné, il remplace la perte de votes.</p>
                         </div>
                       </div>
                     </div>
