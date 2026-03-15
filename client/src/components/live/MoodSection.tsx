@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SectionOption, Card } from '@/types';
 import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
@@ -21,12 +21,19 @@ export function MoodSection({ sessionId, sectionId, options, existingCards, isAc
 
   const myCard = existingCards.find(c => c.authorId === user?.id);
   const [selected, setSelected] = useState<string | null>(myCard?.content ?? null);
+  const [isChanging, setIsChanging] = useState(false);
+
+  // Keep selected in sync when myCard changes (e.g. after server confirms the new card)
+  useEffect(() => {
+    setSelected(myCard?.content ?? null);
+    setIsChanging(false);
+  }, [myCard?._id]);
 
   const handleSelect = (title: string) => {
-    if (!isActive || isDone) return;
+    if (!isActive || isDone || isChanging) return;
     if (myCard?.content === title) return; // same choice
     if (myCard) {
-      // Delete old card before creating new one
+      setIsChanging(true);
       socket.emit('card:delete', { cardId: myCard._id });
     }
     setSelected(title);
@@ -53,13 +60,13 @@ export function MoodSection({ sessionId, sectionId, options, existingCards, isAc
             <button
               key={opt.title}
               onClick={() => handleSelect(opt.title)}
-              disabled={!isActive || isDone}
+              disabled={!isActive || isDone || isChanging}
               className={clsx(
                 'relative rounded-2xl overflow-hidden border-2 transition-all duration-200 text-left shadow-sm',
                 isMyChoice
                   ? 'border-indigo-500 ring-2 ring-indigo-200 scale-[1.03] shadow-indigo-100'
                   : 'border-gray-100 hover:border-indigo-300 hover:shadow-md',
-                (!isActive || isDone) && !isMyChoice && 'opacity-60 cursor-default',
+                (!isActive || isDone || isChanging) && !isMyChoice && 'opacity-60 cursor-default',
               )}
             >
               {/* Image — aspect-square + object-contain so full image always visible */}

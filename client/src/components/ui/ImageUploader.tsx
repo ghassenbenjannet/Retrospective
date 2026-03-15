@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, DragEvent, ClipboardEvent } from 'react';
-import { UploadCloud, X, Image, Link } from 'lucide-react';
+import { UploadCloud, X, Image, Link, Info } from 'lucide-react';
 import { clsx } from 'clsx';
 import { imgSrc } from '@/lib/imageUrl';
 
@@ -104,12 +104,13 @@ export function ImageUploader({ value, onChange, onClear, label, hint, maxWidthP
   return (
     <div>
       {label && (
-        <div className="flex items-baseline gap-2 mb-1">
-          <label className="block text-sm font-medium text-gray-700">{label}</label>
-          {hint && <span className="text-[10px] text-gray-400 font-normal">{hint}</span>}
-        </div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       )}
-      {!label && hint && <p className="text-[10px] text-gray-400 mb-1">{hint}</p>}
+      {hint && (
+        <p className="flex items-center gap-1 text-xs text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg px-2.5 py-1.5 mb-2">
+          <Info size={12} className="flex-shrink-0" />{hint}
+        </p>
+      )}
 
       {/* Preview — object-contain so the full image is always visible */}
       {value && (

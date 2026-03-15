@@ -25,6 +25,9 @@ const cardGames = new Map<string, CardGameState>();
 // sectionDone[sessionId][sectionId] = Set<userId>
 const sectionDone = new Map<string, Map<string, Set<string>>>();
 
+// In-flight join locks to prevent duplicate participants from rapid re-joins
+const joiningLock = new Set<string>(); // `${sessionId}:${userId}`
+
 function getSectionDoneMap(sessionId: string): Map<string, Set<string>> {
   if (!sectionDone.has(sessionId)) sectionDone.set(sessionId, new Map());
   return sectionDone.get(sessionId)!;
@@ -49,40 +52,63 @@ export function registerSocketHandlers(io: Server): void {
 
     // Join session room
     socket.on('session:join', async ({ sessionId }: { sessionId: string }) => {
+      const lockKey = `${sessionId}:${user.userId}`;
+      if (joiningLock.has(lockKey)) return; // prevent duplicate concurrent joins
+      joiningLock.add(lockKey);
       try {
-        const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
-        if (!session) { socket.emit('error', { message: 'Session not found' }); return; }
-        let participant = session.participants.find(p => p.userId.toString() === user.userId);
+        // Atomically mark existing participant as connected
+        let session = await Session.findOneAndUpdate(
+          { _id: sessionId, workspaceId: user.workspaceId, 'participants.userId': new Types.ObjectId(user.userId) },
+          { $set: { 'participants.$.status': 'connected', 'participants.$.socketId': socket.id, 'participants.$.joinedAt': new Date() } },
+          { new: true }
+        );
 
-        if (!participant) {
-          // Auto-add any workspace member who joins (they already passed the workspaceId check above)
+        if (!session) {
+          // Not yet a participant — add atomically (guard against concurrent joins)
           const userDoc = await User.findById(user.userId);
           const newParticipant = {
             userId: new Types.ObjectId(user.userId),
             name: userDoc?.name ?? 'Participant',
-            status: 'connected' as const,
-            remainingVotes: session.templateSnapshot.initialVotes,
+            status: 'connected',
+            remainingVotes: 0, // will be set after fetching initialVotes
             socketId: socket.id,
             joinedAt: new Date(),
           };
+
+          // Fetch session to get initialVotes, only push if user not already present
+          const base = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
+          if (!base) { socket.emit('error', { message: 'Session not found' }); return; }
+          newParticipant.remainingVotes = base.templateSnapshot.initialVotes;
+
           if (user.role === 'admin') {
-            session.participants.unshift(newParticipant as any);
+            // Insert at front — only if not already present
+            session = await Session.findOneAndUpdate(
+              { _id: sessionId, workspaceId: user.workspaceId, 'participants.userId': { $ne: new Types.ObjectId(user.userId) } },
+              { $push: { participants: { $each: [newParticipant], $position: 0 } } },
+              { new: true }
+            );
           } else {
-            session.participants.push(newParticipant as any);
+            session = await Session.findOneAndUpdate(
+              { _id: sessionId, workspaceId: user.workspaceId, 'participants.userId': { $ne: new Types.ObjectId(user.userId) } },
+              { $push: { participants: newParticipant } },
+              { new: true }
+            );
           }
-          await session.save();
-          participant = user.role === 'admin'
-            ? session.participants[0]
-            : session.participants[session.participants.length - 1];
+
+          if (!session) {
+            // Was added by a concurrent join — just update status
+            session = await Session.findOneAndUpdate(
+              { _id: sessionId, workspaceId: user.workspaceId, 'participants.userId': new Types.ObjectId(user.userId) },
+              { $set: { 'participants.$.status': 'connected', 'participants.$.socketId': socket.id, 'participants.$.joinedAt': new Date() } },
+              { new: true }
+            );
+          }
         }
 
+        if (!session) { socket.emit('error', { message: 'Session not found' }); return; }
+        const participant = session.participants.find((p: any) => p.userId.toString() === user.userId);
+
         socket.join(sessionId);
-        if (participant) {
-          participant.status = 'connected';
-          participant.socketId = socket.id;
-          participant.joinedAt = new Date();
-          await session.save();
-        }
 
         socket.emit('session:state', session);
         socket.emit('session:votes_updated', { remainingVotes: participant?.remainingVotes ?? 0 });
@@ -103,6 +129,8 @@ export function registerSocketHandlers(io: Server): void {
         }
       } catch (err) {
         socket.emit('error', { message: 'Join failed' });
+      } finally {
+        joiningLock.delete(lockKey);
       }
     });
 
