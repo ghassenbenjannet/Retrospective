@@ -22,6 +22,14 @@ interface CardGameState {
 }
 const cardGames = new Map<string, CardGameState>();
 
+// sectionDone[sessionId][sectionId] = Set<userId>
+const sectionDone = new Map<string, Map<string, Set<string>>>();
+
+function getSectionDoneMap(sessionId: string): Map<string, Set<string>> {
+  if (!sectionDone.has(sessionId)) sectionDone.set(sessionId, new Map());
+  return sectionDone.get(sessionId)!;
+}
+
 export function registerSocketHandlers(io: Server): void {
   // Auth middleware for socket
   io.use((socket, next) => {
@@ -79,6 +87,14 @@ export function registerSocketHandlers(io: Server): void {
         socket.emit('session:state', session);
         socket.emit('session:votes_updated', { remainingVotes: participant?.remainingVotes ?? 0 });
         io.to(sessionId).emit('session:participants', session.participants);
+
+        // Emit current section done status for all sections
+        const sessionDoneMap = sectionDone.get(sessionId);
+        if (sessionDoneMap) {
+          sessionDoneMap.forEach((users, sid) => {
+            socket.emit('section:done_updated', { sectionId: sid, doneUserIds: Array.from(users) });
+          });
+        }
 
         // If card game is active, send current state
         const game = cardGames.get(sessionId);
@@ -457,6 +473,21 @@ export function registerSocketHandlers(io: Server): void {
       if (user.role !== 'admin') return;
       cardGames.delete(sessionId);
       io.to(sessionId).emit('cardgame:state', null);
+    });
+
+    // Mark current user as done for a section
+    socket.on('section:mark_done', ({ sessionId, sectionId }: { sessionId: string; sectionId: string }) => {
+      const sm = getSectionDoneMap(sessionId);
+      if (!sm.has(sectionId)) sm.set(sectionId, new Set());
+      sm.get(sectionId)!.add(user.userId);
+      io.to(sessionId).emit('section:done_updated', { sectionId, doneUserIds: Array.from(sm.get(sectionId)!) });
+    });
+
+    // Unmark current user as done for a section
+    socket.on('section:unmark_done', ({ sessionId, sectionId }: { sessionId: string; sectionId: string }) => {
+      sectionDone.get(sessionId)?.get(sectionId)?.delete(user.userId);
+      const doneUserIds = Array.from(sectionDone.get(sessionId)?.get(sectionId) ?? []);
+      io.to(sessionId).emit('section:done_updated', { sectionId, doneUserIds });
     });
 
     // Disconnect

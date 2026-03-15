@@ -28,6 +28,8 @@ export function useSession(sessionId: string) {
     socket.on('session:timer_started', ({ timerEndsAt }: { timerEndsAt: string }) => store.setTimerEndsAt(timerEndsAt));
     socket.on('speech_timer:started', ({ speechTimerEndsAt }: { speechTimerEndsAt: string }) => store.setSpeechTimerEndsAt(speechTimerEndsAt));
     socket.on('speech_timer:stopped', () => store.setSpeechTimerEndsAt(null));
+    socket.on('section:done_updated', ({ sectionId, doneUserIds }: { sectionId: string; doneUserIds: string[] }) =>
+      store.setSectionDoneUsers(sectionId, doneUserIds));
 
     socket.on('card:created', (card: Card) => {
       store.addCard(card);
@@ -73,6 +75,7 @@ export function useSession(sessionId: string) {
       socket.off('session:timer_started');
     socket.off('speech_timer:started');
     socket.off('speech_timer:stopped');
+    socket.off('section:done_updated');
       socket.off('card:created');
       socket.off('card:updated');
       socket.off('card:deleted');

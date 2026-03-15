@@ -15,6 +15,7 @@ import { ActionPanel } from '@/components/live/ActionPanel';
 import { ActionSelectionPanel } from '@/components/live/ActionSelectionPanel';
 import { MoodSection } from '@/components/live/MoodSection';
 import { SpeechTimerWidget, SpeechTimerBar } from '@/components/live/SpeechTimerWidget';
+import { DoneButton } from '@/components/live/DoneButton';
 import {
   ChevronLeft, ChevronRight, Vote, Mail, PenLine,
   CheckSquare, MessageSquare, Smile, Gamepad2, Layers
@@ -64,7 +65,7 @@ function TypingIndicator({ names }: { names: string[] }) {
 export function LiveSessionPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
-  const { session, cards, remainingVotes, typingUsers, myVotedCardIds, newCardIds } = useSessionStore();
+  const { session, cards, remainingVotes, typingUsers, myVotedCardIds, newCardIds, sectionDoneUsers } = useSessionStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -185,6 +186,8 @@ export function LiveSessionPage() {
       return <ActionPanel sessionId={id!} isAdmin={isAdmin} />;
     }
     if (section.type === 'mood') {
+      const moodDoneUserIds = sectionDoneUsers[section._id] ?? [];
+      const iAmDone = moodDoneUserIds.includes(user?.id ?? '');
       return (
         <MoodSection
           sessionId={id!}
@@ -192,6 +195,7 @@ export function LiveSessionPage() {
           options={section.options ?? []}
           existingCards={sectionCards}
           isActive={session.status === 'active'}
+          isDone={iAmDone}
         />
       );
     }
@@ -263,6 +267,54 @@ export function LiveSessionPage() {
           <AddCardForm sessionId={id!} sectionId={section._id} />
         )}
       </>
+    );
+  };
+
+  const renderSectionFooter = (section: Section) => {
+    if (session.status !== 'active') return null;
+    // Don't show done button for sections that don't need it
+    if (section.type === 'action_selection' || section.type === 'action_review' || section.type === 'minigame') return null;
+
+    const doneUserIds = sectionDoneUsers[section._id] ?? [];
+    const myId = user?.id ?? '';
+    const iAmDone = doneUserIds.includes(myId);
+    const totalParticipants = connectedParticipants.length;
+    const doneCount = doneUserIds.length;
+
+    return (
+      <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+        <DoneButton sessionId={id!} sectionId={section._id} isDone={iAmDone} />
+        {isAdmin && totalParticipants > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={clsx(
+              'text-xs font-semibold px-2.5 py-1 rounded-full',
+              doneCount === totalParticipants
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-gray-100 text-gray-500',
+            )}>
+              {doneCount}/{totalParticipants} terminé{doneCount > 1 ? 's' : ''}
+            </span>
+            <div className="flex -space-x-1.5">
+              {connectedParticipants.slice(0, 8).map((p, i) => {
+                const isDone = doneUserIds.includes(p.userId);
+                return (
+                  <div
+                    key={p.userId}
+                    title={`${p.name}${isDone ? ' ✓' : ''}`}
+                    className={clsx(
+                      'w-6 h-6 rounded-full border-2 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 transition-all',
+                      isDone ? 'border-emerald-400 ring-1 ring-emerald-300' : 'border-white opacity-40',
+                    )}
+                    style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
+                  >
+                    {getInitials(p.name)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -471,6 +523,7 @@ export function LiveSessionPage() {
               >
                 {renderSectionHeader(section)}
                 {renderSectionContent(section)}
+                {renderSectionFooter(section)}
               </div>
             ))}
           </div>
@@ -483,6 +536,7 @@ export function LiveSessionPage() {
               <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                 {renderSectionHeader(currentSection)}
                 {renderSectionContent(currentSection)}
+                {renderSectionFooter(currentSection)}
               </div>
             ) : null}
           </div>
