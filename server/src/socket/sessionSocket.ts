@@ -11,11 +11,14 @@ interface AuthPayload { userId: string; workspaceId: string; role: string; }
 
 // In-memory card game states per session
 interface CardGameState {
+  sectionId: string;
   cards: Array<{ idx: number; question: string; answer: string; isFlipped: boolean; isAnswerRevealed: boolean }>;
   currentPlayerIdx: number;
-  playerOrder: Array<{ userId: string; name: string }>;
+  playerOrder: Array<{ userId: string; name: string; isAdmin: boolean }>;
   status: 'idle' | 'active' | 'finished';
   currentFlippedCardIdx: number | null;
+  awaitingJudge: boolean;
+  lastResult: { userId: string; name: string; won: boolean; gageText?: string } | null;
 }
 const cardGames = new Map<string, CardGameState>();
 
@@ -318,17 +321,26 @@ export function registerSocketHandlers(io: Server): void {
         isAnswerRevealed: false,
       }));
 
-      // Player order: all connected participants
-      const playerOrder = session.participants
-        .filter((p: any) => p.status === 'connected')
-        .map((p: any) => ({ userId: p.userId.toString(), name: p.name }));
+      // Player order: non-admins first, admin last
+      const connected = session.participants.filter((p: any) => p.status === 'connected');
+      const adminId = session.createdBy.toString();
+      const nonAdmins = connected
+        .filter((p: any) => p.userId.toString() !== adminId)
+        .map((p: any) => ({ userId: p.userId.toString(), name: p.name, isAdmin: false }));
+      const adminParticipant = connected
+        .filter((p: any) => p.userId.toString() === adminId)
+        .map((p: any) => ({ userId: p.userId.toString(), name: p.name, isAdmin: true }));
+      const playerOrder = [...nonAdmins, ...adminParticipant];
 
       const gameState: CardGameState = {
+        sectionId,
         cards,
         currentPlayerIdx: 0,
         playerOrder,
         status: 'active',
         currentFlippedCardIdx: null,
+        awaitingJudge: false,
+        lastResult: null,
       };
       cardGames.set(sessionId, gameState);
       io.to(sessionId).emit('cardgame:state', gameState);
@@ -337,14 +349,11 @@ export function registerSocketHandlers(io: Server): void {
     // Player: flip a card
     socket.on('cardgame:flip', ({ sessionId, cardIdx }: { sessionId: string; cardIdx: number }) => {
       const game = cardGames.get(sessionId);
-      if (!game || game.status !== 'active') return;
-      // Only current player can flip
+      if (!game || game.status !== 'active' || game.awaitingJudge) return;
       const currentPlayer = game.playerOrder[game.currentPlayerIdx];
-      if (!currentPlayer || currentPlayer.userId !== user.userId) {
-        // Admin can also flip for demonstration
-        if (user.role !== 'admin') return;
-      }
-      if (game.cards[cardIdx]?.isFlipped) return; // already flipped
+      if (!currentPlayer || (currentPlayer.userId !== user.userId && user.role !== 'admin')) return;
+      if (game.cards[cardIdx]?.isFlipped) return;
+      if (game.currentFlippedCardIdx !== null) return; // already a card flipped this turn
       game.cards[cardIdx].isFlipped = true;
       game.currentFlippedCardIdx = cardIdx;
       io.to(sessionId).emit('cardgame:state', game);
@@ -354,24 +363,71 @@ export function registerSocketHandlers(io: Server): void {
     socket.on('cardgame:reveal', ({ sessionId, cardIdx }: { sessionId: string; cardIdx: number }) => {
       const game = cardGames.get(sessionId);
       if (!game || game.status !== 'active') return;
-      if (game.cards[cardIdx]) {
-        game.cards[cardIdx].isAnswerRevealed = true;
-        io.to(sessionId).emit('cardgame:state', game);
+      if (!game.cards[cardIdx]) return;
+      game.cards[cardIdx].isAnswerRevealed = true;
+      // If current player is not admin, admin must now judge
+      const currentPlayer = game.playerOrder[game.currentPlayerIdx];
+      if (currentPlayer && !currentPlayer.isAdmin) {
+        game.awaitingJudge = true;
       }
+      io.to(sessionId).emit('cardgame:state', game);
     });
 
-    // Admin: next player
+    // Admin: judge current player (won/lost)
+    socket.on('cardgame:judge', async ({ sessionId, won }: { sessionId: string; won: boolean }) => {
+      if (user.role !== 'admin') return;
+      const game = cardGames.get(sessionId);
+      if (!game || game.status !== 'active' || !game.awaitingJudge) return;
+
+      const currentPlayer = game.playerOrder[game.currentPlayerIdx];
+      if (!currentPlayer || currentPlayer.isAdmin) return;
+
+      const session = await Session.findOne({ _id: sessionId, workspaceId: user.workspaceId });
+      if (!session) return;
+
+      const section = session.templateSnapshot.sections.find((s: any) => s._id.toString() === game.sectionId);
+      const winVotes: number = section?.gameWinVotes ?? 1;
+      const loseEffect: string = section?.gameLoseEffect ?? 'vote';
+      const loseVotes: number = section?.gameLoseVotes ?? 1;
+      const loseGage: string = section?.gameLoseGage ?? '';
+
+      const participant = session.participants.find((p: any) => p.userId.toString() === currentPlayer.userId);
+      let gageText: string | undefined;
+
+      if (participant) {
+        if (won) {
+          participant.remainingVotes += winVotes;
+        } else if (loseEffect === 'vote') {
+          participant.remainingVotes = Math.max(0, participant.remainingVotes - loseVotes);
+        } else {
+          gageText = loseGage;
+        }
+        await session.save();
+        // Notify the judged player of their updated vote count
+        if (participant.socketId) {
+          io.to(participant.socketId).emit('session:votes_updated', { remainingVotes: participant.remainingVotes });
+        }
+      }
+
+      game.lastResult = { userId: currentPlayer.userId, name: currentPlayer.name, won, gageText };
+      game.awaitingJudge = false;
+      // Auto-advance to next player
+      game.currentPlayerIdx = (game.currentPlayerIdx + 1) % game.playerOrder.length;
+      game.currentFlippedCardIdx = null;
+      if (game.cards.every(c => c.isFlipped)) game.status = 'finished';
+
+      io.to(sessionId).emit('cardgame:state', game);
+    });
+
+    // Admin: next player (used for admin's own turn after answer revealed)
     socket.on('cardgame:next_player', ({ sessionId }: { sessionId: string }) => {
       if (user.role !== 'admin') return;
       const game = cardGames.get(sessionId);
-      if (!game || game.status !== 'active') return;
+      if (!game || game.status !== 'active' || game.awaitingJudge) return;
+      game.lastResult = null;
       game.currentPlayerIdx = (game.currentPlayerIdx + 1) % game.playerOrder.length;
       game.currentFlippedCardIdx = null;
-      // Check if all cards flipped
-      const allFlipped = game.cards.every(c => c.isFlipped);
-      if (allFlipped) {
-        game.status = 'finished';
-      }
+      if (game.cards.every(c => c.isFlipped)) game.status = 'finished';
       io.to(sessionId).emit('cardgame:state', game);
     });
 

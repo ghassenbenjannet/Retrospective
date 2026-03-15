@@ -30,6 +30,11 @@ export interface Section {
   hasTimer: boolean;
   timerSeconds: number | null;
   options: SectionOption[];
+  // Minigame config
+  gameWinVotes?: number;
+  gameLoseEffect?: 'vote' | 'gage';
+  gameLoseVotes?: number;
+  gameLoseGage?: string;
 }
 
 export type TemplateStatus = 'draft' | 'active' | 'archived';
@@ -133,9 +138,12 @@ export interface CardGameCard {
 }
 
 export interface CardGameState {
+  sectionId: string;
   cards: CardGameCard[];
   currentPlayerIdx: number;
-  playerOrder: Array<{ userId: string; name: string }>;
+  playerOrder: Array<{ userId: string; name: string; isAdmin: boolean }>;
   status: 'idle' | 'active' | 'finished';
   currentFlippedCardIdx: number | null;
+  awaitingJudge: boolean;
+  lastResult: { userId: string; name: string; won: boolean; gageText?: string } | null;
 }
