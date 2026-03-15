@@ -81,6 +81,26 @@ router.post('/', requireAdmin, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// PATCH /api/sessions/:id/snapshot (admin) — update templateSnapshot and/or name while session is not yet active
+router.patch('/:id/snapshot', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, templateSnapshot } = req.body;
+    const update: Record<string, any> = {};
+    if (name !== undefined) update.name = name;
+    if (templateSnapshot !== undefined) update.templateSnapshot = templateSnapshot;
+
+    const s = await Session.findOneAndUpdate(
+      { _id: req.params.id, workspaceId: req.user!.workspaceId, status: { $in: ['draft', 'planned', 'lobby'] } },
+      { $set: update },
+      { new: true }
+    );
+    if (!s) { res.status(404).json({ message: 'Session non trouvée ou déjà démarrée' }); return; }
+    res.json(s);
+  } catch (err: any) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 // PATCH /api/sessions/:id/status (admin)
 router.patch('/:id/status', requireAdmin, async (req: AuthRequest, res: Response) => {
   const { status } = req.body;

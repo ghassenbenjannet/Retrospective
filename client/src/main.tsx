@@ -10,6 +10,7 @@ import { TemplatesPage } from '@/pages/TemplatesPage';
 import { SessionsPage } from '@/pages/SessionsPage';
 import { LiveSessionPage } from '@/pages/LiveSessionPage';
 import { RecapPage } from '@/pages/RecapPage';
+import { SessionPlannerPage } from '@/pages/SessionPlannerPage';
 import { ActionsPage } from '@/pages/ActionsPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -29,6 +30,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="sessions/:id/live" element={<LiveSessionPage />} />
+          <Route path="sessions/:id/plan" element={<SessionPlannerPage />} />
           <Route path="sessions/:id/recap" element={<RecapPage />} />
           <Route path="actions" element={<ActionsPage />} />
           <Route path="users" element={<UsersPage />} />

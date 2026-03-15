@@ -5,7 +5,7 @@ import { Session, Template, User } from '@/types';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { Plus, PlayCircle, Eye, Trash2, Users, Calendar, ChevronRight } from 'lucide-react';
+import { Plus, PlayCircle, Eye, Trash2, Users, Calendar, ChevronRight, Pencil } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CreateSessionModal } from '@/components/sessions/CreateSessionModal';
 import { clsx } from 'clsx';
@@ -20,11 +20,12 @@ const statusDot: Record<string, string> = {
   draft: 'bg-gray-400', planned: 'bg-blue-500', lobby: 'bg-yellow-400',
   active: 'bg-green-500 animate-pulse', finished: 'bg-indigo-500', archived: 'bg-gray-400',
 };
+// draft → planner page (not a direct status change)
 const nextStatus: Record<string, string> = {
-  draft: 'planned', planned: 'lobby', lobby: 'active', active: 'finished',
+  planned: 'lobby', lobby: 'active', active: 'finished',
 };
 const nextLabel: Record<string, string> = {
-  draft: 'Planifier', planned: 'Ouvrir lobby', lobby: 'Démarrer', active: 'Terminer',
+  planned: 'Ouvrir lobby', lobby: 'Démarrer', active: 'Terminer',
 };
 
 export function SessionsPage() {
@@ -134,6 +135,14 @@ export function SessionsPage() {
                     <Link to={`/sessions/${s._id}/recap`}>
                       <Button size="sm" variant="secondary">
                         <Eye size={13} className="mr-1" />Récap
+                      </Button>
+                    </Link>
+                  )}
+                  {/* Personnaliser — for draft and planned sessions */}
+                  {user?.role === 'admin' && ['draft', 'planned'].includes(s.status) && (
+                    <Link to={`/sessions/${s._id}/plan`}>
+                      <Button size="sm" variant="secondary">
+                        <Pencil size={13} className="mr-1" />Personnaliser
                       </Button>
                     </Link>
                   )}

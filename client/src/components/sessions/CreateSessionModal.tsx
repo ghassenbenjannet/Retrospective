@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Template, User } from '@/types';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function CreateSessionModal({ templates, users, onClose, onCreated }: Props) {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState(templates[0]?._id ?? '');
   const [participantIds, setParticipantIds] = useState<string[]>(users.map(u => u.id));
@@ -28,9 +30,10 @@ export function CreateSessionModal({ templates, users, onClose, onCreated }: Pro
     if (participantIds.length === 0) { toast.error('Au moins un participant requis'); return; }
     setLoading(true);
     try {
-      await api.post('/sessions', { name, templateId, participantIds, maxActions });
-      toast.success('Session créée');
+      const r = await api.post('/sessions', { name, templateId, participantIds, maxActions });
+      toast.success('Session créée — personnalisez-la avant de la démarrer !');
       onCreated();
+      navigate(`/sessions/${r.data._id}/plan`);
     } catch { toast.error('Erreur'); }
     finally { setLoading(false); }
   };
