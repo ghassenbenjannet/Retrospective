@@ -80,7 +80,7 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
   const applyUrl = () => {
     const trimmed = urlInput.trim();
     if (!trimmed) { onClear(); setUrlError(false); return; }
-    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    if (!trimmed.startsWith('https://')) {
       setUrlError(true); return;
     }
     setUrlError(false);
@@ -194,7 +194,7 @@ export function ImageUploader({ value, onChange, onClear, label, maxWidthPx = 12
             />
           </div>
           {urlError && (
-            <p className="text-xs text-red-500">URL invalide — commence par https://</p>
+            <p className="text-xs text-red-500">URL invalide — doit commencer par https://</p>
           )}
           <p className="text-xs text-gray-400">L'image sera chargée depuis cette URL dans les sessions.</p>
         </div>

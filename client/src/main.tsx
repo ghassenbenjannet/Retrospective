@@ -12,6 +12,7 @@ import { LiveSessionPage } from '@/pages/LiveSessionPage';
 import { RecapPage } from '@/pages/RecapPage';
 import { ActionsPage } from '@/pages/ActionsPage';
 import { UsersPage } from '@/pages/UsersPage';
+import { SettingsPage } from '@/pages/SettingsPage';
 import './styles/index.css';
 
 const base = import.meta.env.BASE_URL;
@@ -31,6 +32,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="sessions/:id/recap" element={<RecapPage />} />
           <Route path="actions" element={<ActionsPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
