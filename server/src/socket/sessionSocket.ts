@@ -44,22 +44,25 @@ export function registerSocketHandlers(io: Server): void {
         let participant = session.participants.find(p => p.userId.toString() === user.userId);
 
         if (!participant) {
-          // Fallback: add user as participant if missing (shouldn't happen with new session creation)
+          // Auto-add any workspace member who joins (they already passed the workspaceId check above)
+          const userDoc = await User.findById(user.userId);
+          const newParticipant = {
+            userId: new Types.ObjectId(user.userId),
+            name: userDoc?.name ?? 'Participant',
+            status: 'connected' as const,
+            remainingVotes: session.templateSnapshot.initialVotes,
+            socketId: socket.id,
+            joinedAt: new Date(),
+          };
           if (user.role === 'admin') {
-            const adminUser = await User.findById(user.userId);
-            session.participants.unshift({
-              userId: new Types.ObjectId(user.userId),
-              name: adminUser?.name ?? 'Admin',
-              status: 'connected',
-              remainingVotes: session.templateSnapshot.initialVotes,
-              socketId: socket.id,
-              joinedAt: new Date(),
-            } as any);
-            await session.save();
-            participant = session.participants[0];
+            session.participants.unshift(newParticipant as any);
           } else {
-            socket.emit('error', { message: 'Not a participant' }); return;
+            session.participants.push(newParticipant as any);
           }
+          await session.save();
+          participant = user.role === 'admin'
+            ? session.participants[0]
+            : session.participants[session.participants.length - 1];
         }
 
         socket.join(sessionId);
