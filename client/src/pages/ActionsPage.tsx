@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { Action } from '@/types';
 import { useAuthStore } from '@/store/authStore';
-import { CheckCircle, Clock, Loader2, XCircle, Star, Trophy, Medal, Award } from 'lucide-react';
+import { CheckCircle, Clock, Loader2, XCircle, Star, Trophy, Medal, Award, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
 
@@ -55,6 +55,17 @@ export function ActionsPage() {
   };
 
   const canEdit = (a: Action) => user?.role === 'admin' || a.ownerId === user?.id;
+  const isAdmin = user?.role === 'admin';
+
+  const deleteAction = async (action: Action) => {
+    if (!confirm(`Supprimer l'action "${action.title}" ?`)) return;
+    try {
+      await api.delete(`/actions/${action._id}`);
+      setActions(prev => prev.filter(a => a._id !== action._id));
+    } catch {
+      toast.error('Erreur lors de la suppression');
+    }
+  };
 
   const total = actions.length;
   const done = actions.filter(a => a.status === 'done').length;
@@ -125,12 +136,25 @@ export function ActionsPage() {
                           dragging === action._id && 'opacity-40 scale-95',
                         )}
                       >
-                        {/* Priority badge */}
-                        {prio && (
-                          <span className={clsx('inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full mb-2', prio.color)}>
-                            {prio.icon}{prio.label}
-                          </span>
-                        )}
+                        {/* Priority badge + delete */}
+                        <div className="flex items-start justify-between gap-1 mb-2">
+                          <div>
+                            {prio && (
+                              <span className={clsx('inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full', prio.color)}>
+                                {prio.icon}{prio.label}
+                              </span>
+                            )}
+                          </div>
+                          {isAdmin && (
+                            <button
+                              onClick={e => { e.stopPropagation(); deleteAction(action); }}
+                              className="flex-shrink-0 text-gray-300 hover:text-red-500 transition-colors"
+                              title="Supprimer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
                         <p className="text-sm font-medium text-gray-800 leading-snug mb-2">{action.title}</p>
                         {action.description && (
                           <p className="text-xs text-gray-400 mb-2 line-clamp-2">{action.description}</p>
